@@ -1,11 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState } from "react";
 import { Language } from "@/lib/types";
 
-export function Recorder({ onSave, language }: { onSave: (blobUrl: string, memo: string) => void; language: Language }) {
+export function Recorder({ onSave, language }: { onSave: (blobUrl: string) => void; language: Language }) {
   const [recording, setRecording] = useState(false);
-  const [memo, setMemo] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const chunksRef = useRef<Blob[]>([]);
   const mediaRef = useRef<MediaRecorder | null>(null);
@@ -47,18 +46,8 @@ export function Recorder({ onSave, language }: { onSave: (blobUrl: string, memo:
           </button>
         )}
       </div>
-      <input
-        className="input"
-        type="file"
-        accept="audio/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) setPreviewUrl(URL.createObjectURL(file));
-        }}
-      />
-      <input className="input text-slate-900" placeholder={ja ? "メモ（任意）" : "Memo (optional)"} value={memo} onChange={(e) => setMemo(e.target.value)} />
       {previewUrl && <audio src={previewUrl} controls className="w-full" />}
-      <button className="btn-secondary" onClick={() => previewUrl && onSave(previewUrl, memo)} disabled={!previewUrl}>
+      <button className="btn-secondary" onClick={() => previewUrl && onSave(previewUrl)} disabled={!previewUrl}>
         {ja ? "録音を保存" : "Save Recording"}
       </button>
     </section>

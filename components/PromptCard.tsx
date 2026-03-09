@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { Language } from "@/lib/types";
@@ -44,7 +44,7 @@ export function PromptCard({
         <>
           <textarea
             className="input min-h-28 text-slate-900"
-            placeholder={ja ? "ChatGPTの返答を貼り付け" : "Paste ChatGPT result"}
+            placeholder={ja ? "ChatGPTの結果を貼り付け" : "Paste ChatGPT result"}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
