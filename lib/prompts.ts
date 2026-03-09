@@ -1,91 +1,79 @@
 import { CEFR } from "@/lib/types";
 
+const header = (lang: "en" | "ja", en: string, ja: string) => (lang === "ja" ? ja : en);
+
 export const step2Prompt = (cefr: CEFR, topic: string, lang: "en" | "ja") =>
-  lang === "ja"
-    ? `以下のテーマで、CEFR ${cefr} 向けの1分スピーチ台本を英語で作ってください。
+  [
+    header(lang, "You are my English speaking coach.", "You are my English speaking coach."),
+    header(lang, "We will build the script through chat/voice conversation.", "We will build the script through chat/voice conversation."),
+    "",
+    `Initial topic: ${topic}`,
+    `Target level: CEFR ${cefr}`,
+    "",
+    "Flow:",
+    "1) Ask me to speak first about the topic in my own words.",
+    "2) After I speak, ask exactly 3 follow-up questions to expand the content.",
+    '3) After the 3 questions, ask: "Do you want me to create the script now?"',
+    "4) Only if I agree, create the script in the exact format below.",
+    "5) If I do not agree, keep coaching and ask what to improve.",
+    "",
+    "Final output format:",
+    "[Speech Script]",
+    "- up to 1 minute",
+    `- CEFR ${cefr}, simple and natural`,
+    "- spoken style, short sentences",
+    "",
+    "[Short Version]",
+    "- around 30 seconds",
+    "",
+    "[Useful Variations]",
+    "- 3 paraphrase options",
+    "",
+    "Final output should be English only."
+  ].join("\n");
 
-条件:
-- 短文中心
-- 口語
-- 難語は避ける
-- 出力は英語のみ
+export const step5Prompt = (cefr: CEFR, english: string, _lang: "en" | "ja") =>
+  [
+    "This is my English from AI conversation practice.",
+    `Please correct it for CEFR ${cefr} and keep it practical for real conversation.`,
+    "",
+    "Requirements:",
+    "1) original -> corrected pairs",
+    "2) top 3 correction points (short)",
+    "3) 2 ready-to-use paraphrases",
+    "",
+    "Text:",
+    english
+  ].join("\n");
 
-テーマ:
-${topic}`
-    : `Create a 1-minute English speech script for CEFR ${cefr} on this topic.
+export const step6Prompt = (cefr: CEFR, scene: string, goal: string, durationMin: number, _lang: "en" | "ja") =>
+  [
+    "Let's do a roleplay in AI voice/chat mode. You are my conversation partner.",
+    "",
+    `Scene: ${scene || "everyday conversation"}`,
+    `Goal: ${goal || "keep the conversation for at least 3 exchanges"}`,
+    `Target duration: ${durationMin} min`,
+    "",
+    "Rules:",
+    `- Use simple English around CEFR ${cefr}`,
+    "- Keep each turn short",
+    '- Continue until I say "stop"',
+    "- Do not correct during the roleplay",
+    "- If I get stuck, ask follow-up questions",
+    "",
+    "Start with the first line now."
+  ].join("\n");
 
-Requirements:
-- Short conversational sentences
-- Spoken style
-- Avoid difficult vocabulary
-- Output in English only
-
-Topic:
-${topic}`;
-
-export const step5Prompt = (cefr: CEFR, english: string, lang: "en" | "ja") =>
-  lang === "ja"
-    ? `以下は私が即興で話した英語です。CEFR ${cefr} 向けに添削してください。
-
-要件:
-1) 原文 → 修正版
-2) 重要修正3点
-3) 言い換え2つ
-
-英語:
-${english}`
-    : `This is my improvised English speaking output. Please correct it for CEFR ${cefr}.
-
-Requirements:
-1) original -> corrected pairs
-2) top 3 correction points
-3) 2 paraphrases
-
-Text:
-${english}`;
-
-export const step6Prompt = (cefr: CEFR, scene: string, goal: string, durationMin: number, lang: "en" | "ja") =>
-  lang === "ja"
-    ? `英語ロールプレイをします。あなたは会話相手です。
-
-状況: ${scene}
-ゴール: ${goal}
-条件:
-- CEFR ${cefr} 程度
-- 1ターン短く
-- 私が "stop" と言うまで続ける
-- 会話中は添削しない
-
-まず開始してください。（想定 ${durationMin}分）`
-    : `Let's do an English roleplay. You are my partner.
-
-Scene: ${scene}
-Goal: ${goal}
-Rules:
-- Around CEFR ${cefr}
-- Keep turns short
-- Continue until I say "stop"
-- No correction during roleplay
-
-Start now. (Target ${durationMin} min)`;
-
-export const step7Prompt = (cefr: CEFR, transcript: string, lang: "en" | "ja") =>
-  lang === "ja"
-    ? `以下はロールプレイの文字起こしです。User発言中心に CEFR ${cefr} 向けで修正してください。
-
-要件:
-1) 原文 → 修正版
-2) 修正版のみでA/B会話
-3) 使える表現10個
-
-文字起こし:
-${transcript}`
-    : `Below is a roleplay transcript. Focus on User lines and correct for CEFR ${cefr}.
-
-Requirements:
-1) original -> corrected
-2) natural A/B dialogue with corrected lines
-3) 10 useful expressions
-
-Transcript:
-${transcript}`;
+export const step7Prompt = (cefr: CEFR, transcript: string, _lang: "en" | "ja") =>
+  [
+    "Below is a practice log from AI conversation mode.",
+    `Focus on User lines and improve them for CEFR ${cefr}.`,
+    "",
+    "Requirements:",
+    "1) For each User line: original -> corrected",
+    "2) Rebuild a natural A/B dialogue using only corrected lines",
+    "3) Extract 10 useful expressions with short examples",
+    "",
+    "Transcript:",
+    transcript
+  ].join("\n");
