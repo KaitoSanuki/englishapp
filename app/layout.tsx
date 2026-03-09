@@ -1,8 +1,13 @@
-import type { Metadata } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppProvider } from "@/lib/app-state";
 import { BottomNav } from "@/components/BottomNav";
 import { PWARegister } from "@/components/PWARegister";
+
+export const viewport: Viewport = {
+  themeColor: "#1f7a8c",
+  colorScheme: "light"
+};
 
 export const metadata: Metadata = {
   title: "English Loop",
@@ -23,3 +28,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+
