@@ -80,7 +80,7 @@ const TX = {
     retellNext: "\u6b21\u306e\u30e9\u30a6\u30f3\u30c9\u3078",
     retellRoundDone: "\u3053\u306e\u30e9\u30a6\u30f3\u30c9\u3092\u5b8c\u4e86",
     aiRoundTitle: "AI\u30681\u5206\u4ed5\u4e0a\u3052",
-    aiRoundBody: "AI\u3068\u8a71\u3057\u3066\u30011\u5206\u3067\u518d\u69cb\u6210\u3057\u307e\u3059\u3002",
+    aiRoundBody: "AI\u306b\u30d0\u30c8\u30f3\u30bf\u30c3\u30c1\u3057\u307e\u3059\u3002\u4e0b\u306e\u30d7\u30ed\u30f3\u30d7\u30c8\u3092\u4f7f\u3063\u30661\u5206\u4ed5\u4e0a\u3052\u3057\u307e\u3059\u3002",
     aiTranscriptTitle: "AI\u3068\u306e\u4f1a\u8a71\u30ed\u30b0",
     aiTranscriptPlaceholder: "AI\u3068\u306e1\u5206\u4f1a\u8a71\u3092\u8cbc\u308a\u4ed8\u3051",
     aiFinish: "AI\u3068\u306e\u7df4\u7fd2\u3092\u7d42\u3048\u3066\u6b21\u3078",
@@ -149,7 +149,7 @@ const TX = {
     retellNext: "Next Round",
     retellRoundDone: "Complete This Round",
     aiRoundTitle: "Final 1-Minute AI Round",
-    aiRoundBody: "Talk with AI and do one final 1-minute retelling.",
+    aiRoundBody: "Hand off to AI here. Use the prompt below for the final 1-minute retelling.",
     aiTranscriptTitle: "AI Conversation Log",
     aiTranscriptPlaceholder: "Paste the 1-minute AI conversation",
     aiFinish: "Finish AI Round and Continue",
@@ -927,9 +927,6 @@ export default function TodayLessonPage() {
                             >
                               {t.copyPrompt}
                             </button>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
-                              {t.retellProgress}: {retellRoundIndex + 1}/{retellingRounds.length}
-                            </div>
                             <p className="text-sm font-semibold text-slate-900">{t.aiCorrectedTitle}</p>
                             <textarea
                               className="input min-h-28 text-slate-900"
