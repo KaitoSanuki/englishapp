@@ -288,6 +288,7 @@ export default function TodayLessonPage() {
   const [retellRemaining, setRetellRemaining] = useState(retellingRounds[0].seconds);
   const [day2Phase, setDay2Phase] = useState<Day2Phase>("warmup");
   const [retellTranscript, setRetellTranscript] = useState("");
+  const [day2CorrectionText, setDay2CorrectionText] = useState("");
   const [reviewSentenceIndex, setReviewSentenceIndex] = useState(0);
   const [reviewSentenceRepeatCount, setReviewSentenceRepeatCount] = useState(0);
   const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
@@ -318,8 +319,12 @@ export default function TodayLessonPage() {
   const current = visible.find((f) => !hasValue(values[f.key]));
   const lastAnswered = [...visible].reverse().find((f) => hasValue(values[f.key]));
 
-  const latestScript = state.scripts.find((x) => x.weekId === activeWeek.id);
-  const latestRoleplay = state.roleplays.find((x) => x.weekId === activeWeek.id);
+  const latestScript = [...state.scripts]
+    .filter((x) => x.weekId === activeWeek.id)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const latestRoleplay = [...state.roleplays]
+    .filter((x) => x.weekId === activeWeek.id)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
   useEffect(() => {
     setDraft("");
@@ -336,6 +341,7 @@ export default function TodayLessonPage() {
     setRetellRemaining(retellingRounds[0].seconds);
     setDay2Phase("warmup");
     setRetellTranscript("");
+    setDay2CorrectionText("");
     setReviewSentenceIndex(0);
     setReviewSentenceRepeatCount(0);
     setReviewAllRepeatCount(0);
@@ -517,7 +523,7 @@ export default function TodayLessonPage() {
   const retellElapsed = currentRetellRound ? currentRetellRound.seconds - retellRemaining : 0;
   const latestDay2Correction = latestRoleplay?.correctionText || "";
   const sentences = useMemo(() => splitSentences(readText), [readText]);
-  const reviewText = latestDay2Correction.trim() || retellTranscript.trim();
+  const reviewText = day2CorrectionText.trim() || latestDay2Correction.trim() || retellTranscript.trim();
   const reviewSentences = useMemo(() => splitSentences(reviewText), [reviewText]);
   const sentenceTarget = 10;
   const allTarget = 5;
@@ -593,16 +599,18 @@ export default function TodayLessonPage() {
       createdAt: new Date().toISOString()
     });
     if (currentRetellRound.kind === "ai") {
+      const correctedText = retellTranscript.trim();
       saveRoleplay({
         id: crypto.randomUUID(),
         weekId: activeWeek.id,
         promptText: retellAiPrompt,
-        transcriptText: retellTranscript.trim(),
-        correctionText: retellTranscript.trim(),
-        materialDialogueText: retellTranscript.trim(),
+        transcriptText: correctedText,
+        correctionText: correctedText,
+        materialDialogueText: correctedText,
         phrasesText: retellKeywords.join(", "),
         createdAt: new Date().toISOString()
       });
+      setDay2CorrectionText(correctedText);
       setDay2Phase("review");
       return;
     }
