@@ -613,6 +613,16 @@ export default function TodayLessonPage() {
     setRetellRoundIndex((v) => v + 1);
   };
 
+  const canGoBack =
+    !!dayWrap ||
+    startCardDay !== null
+      ? false
+      : task.id === "step4_321" && !current
+        ? day2Phase !== "warmup" || retellRoundIndex > 0 || hasAnyCompleted || !!lastAnswered
+        : task.id === "step2_script" && !current && step2Phase === "paste"
+          ? true
+          : hasAnyCompleted || !!lastAnswered;
+
   return (
     <div className="h-[calc(100vh-112px)] flex flex-col gap-4 overflow-hidden">
       <section className="glass rounded-xl2 p-4">
@@ -831,22 +841,11 @@ export default function TodayLessonPage() {
                     </div>
                     {!!retellSourceText.trim() ? (
                       <>
-                        <article className="input whitespace-pre-wrap text-slate-900">{retellSourceText}</article>
-                        <div className="space-y-2">
-                          <p className="text-sm font-semibold text-slate-900">{t.keywordsTitle}</p>
-                          <div className="flex flex-wrap gap-2">
-                            {retellKeywords.map((keyword) => (
-                              <span key={keyword} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-900">
-                                {keyword}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
                         {day2Phase === "warmup" ? (
                           <div className="space-y-3">
                             <p className="text-sm font-semibold text-slate-900">{t.warmupTitle}</p>
                             <p className="text-sm text-slate-800">{t.warmupBody}</p>
+                            <article className="input whitespace-pre-wrap text-slate-900">{retellSourceText}</article>
                             <div className="flex gap-2">
                               <button className="btn-secondary flex-1" onClick={() => speak(retellSourceText)}>
                                 {t.playAll}
@@ -909,6 +908,16 @@ export default function TodayLessonPage() {
                           <div className="space-y-3">
                             <p className="text-sm font-semibold text-slate-900">{t.aiRoundTitle}</p>
                             <p className="text-sm text-slate-800">{t.aiRoundBody}</p>
+                            <div className="space-y-2">
+                              <p className="text-sm font-semibold text-slate-900">{t.keywordsTitle}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {retellKeywords.map((keyword) => (
+                                  <span key={keyword} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-900">
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                             <textarea className="input min-h-32 text-slate-900" value={retellAiPrompt} readOnly />
                             <button
                               className="btn-secondary w-full"
@@ -934,6 +943,16 @@ export default function TodayLessonPage() {
                           </div>
                         ) : day2Phase === "retell" && currentRetellRound ? (
                           <div className="space-y-3">
+                            <div className="space-y-2">
+                              <p className="text-sm font-semibold text-slate-900">{t.keywordsTitle}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {retellKeywords.map((keyword) => (
+                                  <span key={keyword} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-900">
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                               <p className="text-sm font-semibold text-slate-900">{ja ? currentRetellRound.labelJa : currentRetellRound.labelEn}</p>
                               <p className="text-xs text-slate-700">
@@ -1021,7 +1040,7 @@ export default function TodayLessonPage() {
 
         <div className="space-y-2 pt-3">
           <div className="flex gap-2">
-            <button className="btn-secondary flex-1" onClick={goBack} disabled={transitioning || !!dayWrap || startCardDay !== null || (!hasAnyCompleted && !lastAnswered)}>
+            <button className="btn-secondary flex-1" onClick={goBack} disabled={transitioning || !canGoBack}>
               {t.back}
             </button>
             <button className="btn-secondary flex-1" onClick={skip} disabled={transitioning || !!dayWrap || startCardDay !== null}>
