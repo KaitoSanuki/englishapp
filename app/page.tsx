@@ -445,7 +445,7 @@ export default function TodayLessonPage() {
       }
       if (day2Phase === "ai") {
         setDay2Phase("retell");
-        setRetellRoundIndex(retellingRounds.length - 1);
+        setRetellRoundIndex(retellingRounds.length - 2);
         return;
       }
       if (day2Phase === "retell" && retellRoundIndex > 0) {
@@ -478,6 +478,11 @@ export default function TodayLessonPage() {
       }
       if (day2Phase === "retell") {
         if (retellRoundIndex < retellingRounds.length - 1) {
+          if (retellRoundIndex >= retellingRounds.length - 2) {
+            setRetellRoundIndex(retellingRounds.length - 1);
+            setDay2Phase("ai");
+            return;
+          }
           setRetellRoundIndex((v) => v + 1);
         } else {
           setDay2Phase("ai");
@@ -615,6 +620,7 @@ export default function TodayLessonPage() {
       return;
     }
     if (retellRoundIndex >= retellingRounds.length - 2) {
+      setRetellRoundIndex(retellingRounds.length - 1);
       setDay2Phase("ai");
       return;
     }
