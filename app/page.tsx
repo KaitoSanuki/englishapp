@@ -20,6 +20,14 @@ type FieldDef = {
 type TaskDef = { id: string; en: string; ja: string; fields: FieldDef[] };
 type DayWrap = { fromDay: number; nextDay: number | null };
 type Step2Phase = "prompt" | "paste";
+type RetellingRound = {
+  id: string;
+  mode: "3" | "2" | "1";
+  seconds: number;
+  labelJa: string;
+  labelEn: string;
+  kind: "solo" | "ai";
+};
 
 const TX = {
   ja: {
@@ -62,7 +70,23 @@ const TX = {
     playSentence: "\u3053\u306e\u6587\u3092\u518d\u751f",
     playAll: "\u5168\u6587\u3092\u518d\u751f",
     readOnce: "1\u56de\u97f3\u8aad\u3057\u305f",
-    readingGuideDone: "\u30ac\u30a4\u30c9\u9054\u6210\uff01\u97f3\u8aad\u30b9\u30c6\u30c3\u30d7\u3092\u5b8c\u4e86"
+    readingGuideDone: "\u30ac\u30a4\u30c9\u9054\u6210\uff01\u97f3\u8aad\u30b9\u30c6\u30c3\u30d7\u3092\u5b8c\u4e86",
+    keywordsTitle: "\u30ad\u30fc\u30ef\u30fc\u30c9",
+    retellGuideTitle: "3-2-1 \u30ea\u30c6\u30ea\u30f3\u30b0",
+    retellGuideBody: "\u53f0\u672c\u3092\u898b\u306a\u304c\u3089\u3001\u30ad\u30fc\u30ef\u30fc\u30c9\u3092\u3064\u306a\u3052\u3066\u8a71\u3057\u307e\u3059\u3002",
+    retellStart: "\u30bf\u30a4\u30de\u30fc\u3092\u958b\u59cb",
+    retellStop: "\u3053\u306e\u30e9\u30a6\u30f3\u30c9\u3092\u6b62\u3081\u308b",
+    retellNext: "\u6b21\u306e\u30e9\u30a6\u30f3\u30c9\u3078",
+    retellRoundDone: "\u3053\u306e\u30e9\u30a6\u30f3\u30c9\u3092\u5b8c\u4e86",
+    aiRoundTitle: "AI\u30681\u5206\u4ed5\u4e0a\u3052",
+    aiRoundBody: "AI\u3068\u8a71\u3057\u3066\u30011\u5206\u3067\u518d\u69cb\u6210\u3057\u307e\u3059\u3002",
+    aiTranscriptTitle: "AI\u3068\u306e\u4f1a\u8a71\u30ed\u30b0",
+    aiTranscriptPlaceholder: "AI\u3068\u306e1\u5206\u4f1a\u8a71\u3092\u8cbc\u308a\u4ed8\u3051",
+    aiFinish: "AI\u3068\u306e\u7df4\u7fd2\u3092\u7d42\u3048\u3066\u6b21\u3078",
+    correctionPromptTitle: "\u6dfb\u524a\u30d7\u30ed\u30f3\u30d7\u30c8",
+    correctionPromptBody: "AI\u306b\u3053\u306e\u30d7\u30ed\u30f3\u30d7\u30c8\u3092\u9001\u3063\u3066\u3001\u6700\u5f8c\u306e1\u5206\u3092\u6dfb\u524a\u3057\u3066\u3082\u3089\u3044\u307e\u3059\u3002",
+    completeRetell: "2\u65e5\u76ee\u3092\u5b8c\u4e86",
+    retellProgress: "\u30e9\u30a6\u30f3\u30c9"
   },
   en: {
     title: "Today Lesson",
@@ -104,7 +128,23 @@ const TX = {
     playSentence: "Play sentence",
     playAll: "Play all",
     readOnce: "Count 1 reading",
-    readingGuideDone: "Guide completed. Finish this reading step."
+    readingGuideDone: "Guide completed. Finish this reading step.",
+    keywordsTitle: "Keywords",
+    retellGuideTitle: "3-2-1 Retelling",
+    retellGuideBody: "Rebuild the script by connecting the keywords in your own words.",
+    retellStart: "Start Timer",
+    retellStop: "Stop This Round",
+    retellNext: "Next Round",
+    retellRoundDone: "Complete This Round",
+    aiRoundTitle: "Final 1-Minute AI Round",
+    aiRoundBody: "Talk with AI and do one final 1-minute retelling.",
+    aiTranscriptTitle: "AI Conversation Log",
+    aiTranscriptPlaceholder: "Paste the 1-minute AI conversation",
+    aiFinish: "Finish AI Round and Continue",
+    correctionPromptTitle: "Correction Prompt",
+    correctionPromptBody: "Send this prompt to AI to get correction for the final 1-minute retelling.",
+    completeRetell: "Complete Day 2",
+    retellProgress: "Round"
   }
 } as const;
 
@@ -176,6 +216,34 @@ const splitSentences = (text: string) =>
     .map((v) => v.trim())
     .filter(Boolean);
 
+const retellingRounds: RetellingRound[] = [
+  { id: "3-1", mode: "3", seconds: 180, labelJa: "3分 1回目", labelEn: "3 min · Round 1", kind: "solo" },
+  { id: "3-2", mode: "3", seconds: 180, labelJa: "3分 2回目", labelEn: "3 min · Round 2", kind: "solo" },
+  { id: "3-3", mode: "3", seconds: 180, labelJa: "3分 3回目", labelEn: "3 min · Round 3", kind: "solo" },
+  { id: "2-1", mode: "2", seconds: 120, labelJa: "2分 1回目", labelEn: "2 min · Round 1", kind: "solo" },
+  { id: "2-2", mode: "2", seconds: 120, labelJa: "2分 2回目", labelEn: "2 min · Round 2", kind: "solo" },
+  { id: "1-1", mode: "1", seconds: 60, labelJa: "1分 1回目", labelEn: "1 min · Round 1", kind: "solo" },
+  { id: "ai-1", mode: "1", seconds: 60, labelJa: "AIと1分 仕上げ", labelEn: "1 min with AI", kind: "ai" }
+];
+
+const keywordStopWords = new Set([
+  "the", "and", "that", "have", "with", "from", "your", "about", "this", "there", "would", "could", "should", "into",
+  "than", "then", "them", "they", "their", "been", "were", "what", "when", "where", "which", "while", "because", "really",
+  "just", "also", "very", "much", "some", "more", "like", "want", "need", "talk", "speak", "said", "will", "around", "minute"
+]);
+
+const extractKeywords = (text: string) => {
+  const counts = new Map<string, number>();
+  for (const word of text.toLowerCase().match(/[a-z']+/g) ?? []) {
+    if (word.length < 4 || keywordStopWords.has(word)) continue;
+    counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8)
+    .map(([word]) => word);
+};
+
 export default function TodayLessonPage() {
   const { state, activeWeek, saveTaskRun, saveWeek, setWizardAnswer, undoLastCompletedTask, saveScript, saveRoleplay, saveRetelling, saveAudio } = useAppState();
   const ja = state.language === "ja";
@@ -192,6 +260,11 @@ export default function TodayLessonPage() {
   const [sentenceIndex, setSentenceIndex] = useState(0);
   const [sentenceRepeatCount, setSentenceRepeatCount] = useState(0);
   const [allRepeatCount, setAllRepeatCount] = useState(0);
+  const [retellRoundIndex, setRetellRoundIndex] = useState(0);
+  const [retellRunning, setRetellRunning] = useState(false);
+  const [retellRemaining, setRetellRemaining] = useState(retellingRounds[0].seconds);
+  const [retellTranscript, setRetellTranscript] = useState("");
+  const [retellCorrectionReady, setRetellCorrectionReady] = useState(false);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -232,7 +305,21 @@ export default function TodayLessonPage() {
     setSentenceIndex(0);
     setSentenceRepeatCount(0);
     setAllRepeatCount(0);
+    setRetellRoundIndex(0);
+    setRetellRunning(false);
+    setRetellRemaining(retellingRounds[0].seconds);
+    setRetellTranscript("");
+    setRetellCorrectionReady(false);
   }, [frozenDay, task.id]);
+
+  useEffect(() => {
+    if (task.id !== "step4_321") return;
+    if (retellCorrectionReady) return;
+    const currentRound = retellingRounds[retellRoundIndex];
+    if (!currentRound) return;
+    setRetellRunning(false);
+    setRetellRemaining(currentRound.seconds);
+  }, [retellRoundIndex, retellCorrectionReady, task.id]);
 
   useEffect(() => {
     if (!transitioning) return;
@@ -250,6 +337,23 @@ export default function TodayLessonPage() {
     }, 100);
     return () => clearInterval(id);
   }, [transitioning]);
+
+  useEffect(() => {
+    if (task.id !== "step4_321" || !retellRunning || retellCorrectionReady) return;
+    const currentRound = retellingRounds[retellRoundIndex];
+    if (!currentRound) return;
+    const id = setInterval(() => {
+      setRetellRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          setRetellRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [retellCorrectionReady, retellRoundIndex, retellRunning, task.id]);
 
   const save = (key: string, value: string) => setWizardAnswer(fkey(activeWeek.id, task.id, key), value);
   const say = (v: string) => t.chat.replace("{v}", v);
@@ -299,6 +403,16 @@ export default function TodayLessonPage() {
       setStep2Phase("prompt");
       return;
     }
+    if (task.id === "step4_321" && !current) {
+      if (retellCorrectionReady) {
+        setRetellCorrectionReady(false);
+        return;
+      }
+      if (retellRoundIndex > 0) {
+        setRetellRoundIndex((v) => v - 1);
+        return;
+      }
+    }
     if (lastAnswered) {
       save(lastAnswered.key, "");
       return;
@@ -311,6 +425,10 @@ export default function TodayLessonPage() {
       save(current.key, "__skip__");
       setFeedback(say(t.skipped));
       if (isFinalQuestion(current.key) && !taskHasAction(task.id)) setTimeout(finishStep, 220);
+      return;
+    }
+    if (task.id === "step4_321" && !current) {
+      finishStep();
       return;
     }
     goBack();
@@ -333,11 +451,43 @@ export default function TodayLessonPage() {
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
   const hideProgress = !!dayWrap || startCardDay !== null;
   const readText = task.id === "step3_read" ? latestScript?.enScript || "" : latestRoleplay?.correctionText || latestScript?.enScript || "";
+  const retellSourceText = latestScript?.enScript || "";
+  const retellKeywords = extractKeywords(retellSourceText);
+  const currentRetellRound = retellingRounds[retellRoundIndex];
+  const retellElapsed = currentRetellRound ? currentRetellRound.seconds - retellRemaining : 0;
   const sentences = useMemo(() => splitSentences(readText), [readText]);
   const sentenceTarget = 10;
   const allTarget = 5;
   const sentenceStageDone = sentenceIndex >= sentences.length;
   const readingGuideDone = sentenceStageDone && allRepeatCount >= allTarget;
+  const retellAiPrompt = [
+    "Let's do a 1-minute retelling practice.",
+    `Topic: ${activeWeek.topicTitle}`,
+    `Level: CEFR ${effectiveCefr}`,
+    retellKeywords.length ? `Keywords to include naturally: ${retellKeywords.join(", ")}` : "",
+    "Rules:",
+    "- Ask me to retell the topic in about 1 minute.",
+    "- Keep your turns very short.",
+    "- Do not correct me during the conversation.",
+    "- When I stop, ask if I want correction."
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const retellCorrectionPrompt = [
+    "Below is my final 1-minute retelling practice with AI.",
+    `Please correct it for CEFR ${effectiveCefr}.`,
+    retellKeywords.length ? `Reference keywords: ${retellKeywords.join(", ")}` : "",
+    "",
+    "Requirements:",
+    "1) original -> corrected pairs",
+    "2) top 3 correction points",
+    "3) a cleaner 1-minute version",
+    "",
+    "Transcript:",
+    retellTranscript
+  ]
+    .filter((line, index, arr) => line || (index > 0 && arr[index - 1]))
+    .join("\n");
 
   const speak = (payload: string) => {
     if (!payload) return;
@@ -360,6 +510,36 @@ export default function TodayLessonPage() {
       return;
     }
     setAllRepeatCount((v) => Math.min(allTarget, v + 1));
+  };
+
+  const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+  const completeRetellRound = () => {
+    if (!currentRetellRound) return;
+    saveRetelling({
+      id: crypto.randomUUID(),
+      weekId: activeWeek.id,
+      mode: currentRetellRound.mode,
+      actualTimeSec: retellElapsed,
+      rating: 0,
+      notes: currentRetellRound.id,
+      createdAt: new Date().toISOString()
+    });
+    if (currentRetellRound.kind === "ai") {
+      saveRoleplay({
+        id: crypto.randomUUID(),
+        weekId: activeWeek.id,
+        promptText: retellAiPrompt,
+        transcriptText: retellTranscript.trim(),
+        correctionText: "",
+        materialDialogueText: "",
+        phrasesText: retellKeywords.join(", "),
+        createdAt: new Date().toISOString()
+      });
+      setRetellCorrectionReady(true);
+      return;
+    }
+    setRetellRoundIndex((v) => v + 1);
   };
 
   return (
@@ -389,7 +569,10 @@ export default function TodayLessonPage() {
             </>
           )}
 
-          <div key={`${displayDay}-${task.id}-${current?.key ?? "action"}-${transitioning ? "done" : "live"}-${step2Phase}`} className="rounded-xl border border-slate-200 bg-white/70 p-4 animate-card-swap">
+          <div
+            key={`${displayDay}-${task.id}-${current?.key ?? "action"}-${transitioning ? "done" : "live"}-${step2Phase}-${retellRoundIndex}-${retellCorrectionReady ? "review" : "round"}`}
+            className="rounded-xl border border-slate-200 bg-white/70 p-4 animate-card-swap"
+          >
             {dayWrap ? (
               <div className="space-y-3">
                 <p className="font-semibold text-slate-900">{dayWrap.nextDay === null ? t.weekDoneTitle : t.dayDoneTitle}</p>
@@ -569,7 +752,99 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {(task.id === "step4_321" || task.id === "step4_light") && (
+                {task.id === "step4_321" && (
+                  <section className="glass rounded-xl2 p-4 space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="text-base font-bold text-slate-900">{t.retellGuideTitle}</h3>
+                      <p className="text-sm text-slate-800">{t.retellGuideBody}</p>
+                    </div>
+                    {!!retellSourceText.trim() ? (
+                      <>
+                        <article className="input whitespace-pre-wrap text-slate-900">{retellSourceText}</article>
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold text-slate-900">{t.keywordsTitle}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {retellKeywords.map((keyword) => (
+                              <span key={keyword} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-900">
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {retellCorrectionReady ? (
+                          <div className="space-y-3">
+                            <p className="text-sm font-semibold text-slate-900">{t.correctionPromptTitle}</p>
+                            <p className="text-sm text-slate-800">{t.correctionPromptBody}</p>
+                            <textarea className="input min-h-36 text-slate-900" value={retellCorrectionPrompt} readOnly />
+                            <button
+                              className="btn-secondary w-full"
+                              onClick={async () => {
+                                await navigator.clipboard.writeText(retellCorrectionPrompt);
+                              }}
+                            >
+                              {t.copyPrompt}
+                            </button>
+                            <button className="btn-primary w-full" onClick={finishStep}>
+                              {t.completeRetell}
+                            </button>
+                          </div>
+                        ) : currentRetellRound?.kind === "ai" ? (
+                          <div className="space-y-3">
+                            <p className="text-sm font-semibold text-slate-900">{t.aiRoundTitle}</p>
+                            <p className="text-sm text-slate-800">{t.aiRoundBody}</p>
+                            <textarea className="input min-h-32 text-slate-900" value={retellAiPrompt} readOnly />
+                            <button
+                              className="btn-secondary w-full"
+                              onClick={async () => {
+                                await navigator.clipboard.writeText(retellAiPrompt);
+                              }}
+                            >
+                              {t.copyPrompt}
+                            </button>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+                              {t.retellProgress}: {retellRoundIndex + 1}/{retellingRounds.length}
+                            </div>
+                            <textarea
+                              className="input min-h-28 text-slate-900"
+                              placeholder={t.aiTranscriptPlaceholder}
+                              value={retellTranscript}
+                              onChange={(e) => setRetellTranscript(e.target.value)}
+                            />
+                            <button className="btn-primary w-full" onClick={completeRetellRound} disabled={!retellTranscript.trim()}>
+                              {t.aiFinish}
+                            </button>
+                          </div>
+                        ) : currentRetellRound ? (
+                          <div className="space-y-3">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                              <p className="text-sm font-semibold text-slate-900">{ja ? currentRetellRound.labelJa : currentRetellRound.labelEn}</p>
+                              <p className="text-xs text-slate-700">
+                                {t.retellProgress}: {retellRoundIndex + 1}/{retellingRounds.length}
+                              </p>
+                            </div>
+                            <p className="text-4xl font-black tabular-nums text-slate-900">{formatTimer(retellRemaining)}</p>
+                            <div className="flex gap-2">
+                              <button className="btn-primary flex-1" onClick={() => setRetellRunning(true)} disabled={retellRunning || retellRemaining === 0}>
+                                {t.retellStart}
+                              </button>
+                              <button className="btn-secondary flex-1" onClick={() => setRetellRunning(false)} disabled={!retellRunning}>
+                                {t.retellStop}
+                              </button>
+                            </div>
+                            <button className="btn-primary w-full" onClick={completeRetellRound} disabled={retellElapsed <= 0}>
+                              {retellRoundIndex === retellingRounds.length - 1 ? t.retellRoundDone : t.retellNext}
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-800">{t.noScript}</p>
+                    )}
+                  </section>
+                )}
+
+                {task.id === "step4_light" && (
                   <Timer321
                     language={state.language}
                     onSave={(mode, sec, rating, notes) => {
