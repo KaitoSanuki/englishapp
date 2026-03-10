@@ -20,6 +20,7 @@ type FieldDef = {
 type TaskDef = { id: string; en: string; ja: string; fields: FieldDef[] };
 type DayWrap = { fromDay: number; nextDay: number | null };
 type Step2Phase = "prompt" | "paste";
+type Day2Phase = "warmup" | "retell" | "ai" | "review";
 type RetellingRound = {
   id: string;
   mode: "3" | "2" | "1";
@@ -86,7 +87,18 @@ const TX = {
     correctionPromptTitle: "\u6dfb\u524a\u30d7\u30ed\u30f3\u30d7\u30c8",
     correctionPromptBody: "AI\u306b\u3053\u306e\u30d7\u30ed\u30f3\u30d7\u30c8\u3092\u9001\u3063\u3066\u3001\u6700\u5f8c\u306e1\u5206\u3092\u6dfb\u524a\u3057\u3066\u3082\u3089\u3044\u307e\u3059\u3002",
     completeRetell: "2\u65e5\u76ee\u3092\u5b8c\u4e86",
-    retellProgress: "\u30e9\u30a6\u30f3\u30c9"
+    retellProgress: "\u30e9\u30a6\u30f3\u30c9",
+    warmupTitle: "\u307e\u305a1\u56de\u97f3\u8aad",
+    warmupBody: "1\u65e5\u76ee\u306e\u53f0\u672c\u30921\u56de\u97f3\u8aad\u3057\u3066\u304b\u30892\u65e5\u76ee\u3092\u59cb\u3081\u307e\u3059\u3002",
+    startRetelling: "\u30ea\u30c6\u30ea\u30f3\u30b0\u3092\u59cb\u3081\u308b",
+    aiCorrectedTitle: "AI\u306e\u6dfb\u524a\u7d50\u679c",
+    aiCorrectedPlaceholder: "AI\u304c\u51fa\u529b\u3057\u305f\u6dfb\u524a\u5f8c\u306e\u5168\u6587\u3092\u8cbc\u308a\u4ed8\u3051",
+    saveAiCorrection: "AI\u306e\u6dfb\u524a\u3092\u4fdd\u5b58",
+    reviewTitle: "\u6dfb\u524a\u7248\u3092\u97f3\u8aad",
+    reviewBody: "\u6dfb\u524a\u5f8c\u306e\u5168\u6587\u3092\u30011\u65e5\u76ee\u306e\u534a\u5206\u306e\u56de\u6570\u3067\u97f3\u8aad\u3057\u307e\u3059\u3002",
+    reviewSentencePractice: "1\u6587\u305a\u30645\u56de\u97f3\u8aad",
+    reviewAllPractice: "\u5168\u65872\u56de\u97f3\u8aad",
+    finishDay2: "2\u65e5\u76ee\u3092\u7d42\u3048\u308b"
   },
   en: {
     title: "Today Lesson",
@@ -144,7 +156,18 @@ const TX = {
     correctionPromptTitle: "Correction Prompt",
     correctionPromptBody: "Send this prompt to AI to get correction for the final 1-minute retelling.",
     completeRetell: "Complete Day 2",
-    retellProgress: "Round"
+    retellProgress: "Round",
+    warmupTitle: "One Warm-up Read",
+    warmupBody: "Read day 1 script once before starting day 2.",
+    startRetelling: "Start Retelling",
+    aiCorrectedTitle: "AI Corrected Script",
+    aiCorrectedPlaceholder: "Paste the corrected full script from AI",
+    saveAiCorrection: "Save AI Correction",
+    reviewTitle: "Read Corrected Script",
+    reviewBody: "Read the corrected script with about half the volume of day 1.",
+    reviewSentencePractice: "Read each sentence 5 times",
+    reviewAllPractice: "Read full script 2 times",
+    finishDay2: "Finish Day 2"
   }
 } as const;
 
@@ -233,15 +256,15 @@ const keywordStopWords = new Set([
 ]);
 
 const extractKeywords = (text: string) => {
-  const counts = new Map<string, number>();
+  const ordered: string[] = [];
+  const seen = new Set<string>();
   for (const word of text.toLowerCase().match(/[a-z']+/g) ?? []) {
     if (word.length < 4 || keywordStopWords.has(word)) continue;
-    counts.set(word, (counts.get(word) ?? 0) + 1);
+    if (seen.has(word)) continue;
+    seen.add(word);
+    ordered.push(word);
   }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, 8)
-    .map(([word]) => word);
+  return ordered.slice(0, 8);
 };
 
 export default function TodayLessonPage() {
@@ -263,8 +286,11 @@ export default function TodayLessonPage() {
   const [retellRoundIndex, setRetellRoundIndex] = useState(0);
   const [retellRunning, setRetellRunning] = useState(false);
   const [retellRemaining, setRetellRemaining] = useState(retellingRounds[0].seconds);
+  const [day2Phase, setDay2Phase] = useState<Day2Phase>("warmup");
   const [retellTranscript, setRetellTranscript] = useState("");
-  const [retellCorrectionReady, setRetellCorrectionReady] = useState(false);
+  const [reviewSentenceIndex, setReviewSentenceIndex] = useState(0);
+  const [reviewSentenceRepeatCount, setReviewSentenceRepeatCount] = useState(0);
+  const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -308,18 +334,21 @@ export default function TodayLessonPage() {
     setRetellRoundIndex(0);
     setRetellRunning(false);
     setRetellRemaining(retellingRounds[0].seconds);
+    setDay2Phase("warmup");
     setRetellTranscript("");
-    setRetellCorrectionReady(false);
+    setReviewSentenceIndex(0);
+    setReviewSentenceRepeatCount(0);
+    setReviewAllRepeatCount(0);
   }, [frozenDay, task.id]);
 
   useEffect(() => {
     if (task.id !== "step4_321") return;
-    if (retellCorrectionReady) return;
+    if (day2Phase !== "retell") return;
     const currentRound = retellingRounds[retellRoundIndex];
     if (!currentRound) return;
     setRetellRunning(false);
     setRetellRemaining(currentRound.seconds);
-  }, [retellRoundIndex, retellCorrectionReady, task.id]);
+  }, [day2Phase, retellRoundIndex, task.id]);
 
   useEffect(() => {
     if (!transitioning) return;
@@ -339,7 +368,7 @@ export default function TodayLessonPage() {
   }, [transitioning]);
 
   useEffect(() => {
-    if (task.id !== "step4_321" || !retellRunning || retellCorrectionReady) return;
+    if (task.id !== "step4_321" || day2Phase !== "retell" || !retellRunning) return;
     const currentRound = retellingRounds[retellRoundIndex];
     if (!currentRound) return;
     const id = setInterval(() => {
@@ -353,7 +382,7 @@ export default function TodayLessonPage() {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [retellCorrectionReady, retellRoundIndex, retellRunning, task.id]);
+  }, [day2Phase, retellRoundIndex, retellRunning, task.id]);
 
   const save = (key: string, value: string) => setWizardAnswer(fkey(activeWeek.id, task.id, key), value);
   const say = (v: string) => t.chat.replace("{v}", v);
@@ -404,12 +433,21 @@ export default function TodayLessonPage() {
       return;
     }
     if (task.id === "step4_321" && !current) {
-      if (retellCorrectionReady) {
-        setRetellCorrectionReady(false);
+      if (day2Phase === "review") {
+        setDay2Phase("ai");
         return;
       }
-      if (retellRoundIndex > 0) {
+      if (day2Phase === "ai") {
+        setDay2Phase("retell");
+        setRetellRoundIndex(retellingRounds.length - 1);
+        return;
+      }
+      if (day2Phase === "retell" && retellRoundIndex > 0) {
         setRetellRoundIndex((v) => v - 1);
+        return;
+      }
+      if (day2Phase === "retell" && retellRoundIndex === 0) {
+        setDay2Phase("warmup");
         return;
       }
     }
@@ -428,6 +466,28 @@ export default function TodayLessonPage() {
       return;
     }
     if (task.id === "step4_321" && !current) {
+      if (day2Phase === "warmup") {
+        setDay2Phase("retell");
+        return;
+      }
+      if (day2Phase === "retell") {
+        if (retellRoundIndex < retellingRounds.length - 1) {
+          setRetellRoundIndex((v) => v + 1);
+        } else {
+          setDay2Phase("ai");
+        }
+        return;
+      }
+      if (day2Phase === "ai") {
+        setDay2Phase("review");
+        return;
+      }
+      if (day2Phase === "review") {
+        finishStep();
+        return;
+      }
+    }
+    if (!current && taskHasAction(task.id)) {
       finishStep();
       return;
     }
@@ -455,38 +515,31 @@ export default function TodayLessonPage() {
   const retellKeywords = extractKeywords(retellSourceText);
   const currentRetellRound = retellingRounds[retellRoundIndex];
   const retellElapsed = currentRetellRound ? currentRetellRound.seconds - retellRemaining : 0;
+  const latestDay2Correction = latestRoleplay?.correctionText || "";
   const sentences = useMemo(() => splitSentences(readText), [readText]);
+  const reviewText = latestDay2Correction.trim() || retellTranscript.trim();
+  const reviewSentences = useMemo(() => splitSentences(reviewText), [reviewText]);
   const sentenceTarget = 10;
   const allTarget = 5;
   const sentenceStageDone = sentenceIndex >= sentences.length;
   const readingGuideDone = sentenceStageDone && allRepeatCount >= allTarget;
+  const reviewSentenceTarget = 5;
+  const reviewAllTarget = 2;
+  const reviewSentenceStageDone = reviewSentenceIndex >= reviewSentences.length;
+  const reviewGuideDone = reviewSentenceStageDone && reviewAllRepeatCount >= reviewAllTarget;
   const retellAiPrompt = [
-    "Let's do a 1-minute retelling practice.",
+    "We will do one final retelling practice.",
     `Topic: ${activeWeek.topicTitle}`,
     `Level: CEFR ${effectiveCefr}`,
-    retellKeywords.length ? `Keywords to include naturally: ${retellKeywords.join(", ")}` : "",
+    retellKeywords.length ? `Keywords in speaking order: ${retellKeywords.join(" -> ")}` : "",
     "Rules:",
-    "- Ask me to retell the topic in about 1 minute.",
-    "- Keep your turns very short.",
-    "- Do not correct me during the conversation.",
-    "- When I stop, ask if I want correction."
+    "- First, show me the keywords briefly.",
+    '- Then stay silent until I say "retelling finished".',
+    "- Do not interrupt or ask follow-up questions while I am speaking.",
+    '- After I say "retelling finished", output one corrected full version only.',
+    "- Make the corrected full version natural and simple for my CEFR level."
   ]
     .filter(Boolean)
-    .join("\n");
-  const retellCorrectionPrompt = [
-    "Below is my final 1-minute retelling practice with AI.",
-    `Please correct it for CEFR ${effectiveCefr}.`,
-    retellKeywords.length ? `Reference keywords: ${retellKeywords.join(", ")}` : "",
-    "",
-    "Requirements:",
-    "1) original -> corrected pairs",
-    "2) top 3 correction points",
-    "3) a cleaner 1-minute version",
-    "",
-    "Transcript:",
-    retellTranscript
-  ]
-    .filter((line, index, arr) => line || (index > 0 && arr[index - 1]))
     .join("\n");
 
   const speak = (payload: string) => {
@@ -512,6 +565,20 @@ export default function TodayLessonPage() {
     setAllRepeatCount((v) => Math.min(allTarget, v + 1));
   };
 
+  const countReviewReading = () => {
+    if (!reviewSentenceStageDone) {
+      const nextCount = reviewSentenceRepeatCount + 1;
+      if (nextCount >= reviewSentenceTarget) {
+        setReviewSentenceRepeatCount(0);
+        setReviewSentenceIndex((v) => v + 1);
+      } else {
+        setReviewSentenceRepeatCount(nextCount);
+      }
+      return;
+    }
+    setReviewAllRepeatCount((v) => Math.min(reviewAllTarget, v + 1));
+  };
+
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
   const completeRetellRound = () => {
@@ -531,12 +598,16 @@ export default function TodayLessonPage() {
         weekId: activeWeek.id,
         promptText: retellAiPrompt,
         transcriptText: retellTranscript.trim(),
-        correctionText: "",
-        materialDialogueText: "",
+        correctionText: retellTranscript.trim(),
+        materialDialogueText: retellTranscript.trim(),
         phrasesText: retellKeywords.join(", "),
         createdAt: new Date().toISOString()
       });
-      setRetellCorrectionReady(true);
+      setDay2Phase("review");
+      return;
+    }
+    if (retellRoundIndex >= retellingRounds.length - 2) {
+      setDay2Phase("ai");
       return;
     }
     setRetellRoundIndex((v) => v + 1);
@@ -570,7 +641,7 @@ export default function TodayLessonPage() {
           )}
 
           <div
-            key={`${displayDay}-${task.id}-${current?.key ?? "action"}-${transitioning ? "done" : "live"}-${step2Phase}-${retellRoundIndex}-${retellCorrectionReady ? "review" : "round"}`}
+            key={`${displayDay}-${task.id}-${current?.key ?? "action"}-${transitioning ? "done" : "live"}-${step2Phase}-${day2Phase}-${retellRoundIndex}`}
             className="rounded-xl border border-slate-200 bg-white/70 p-4 animate-card-swap"
           >
             {dayWrap ? (
@@ -772,24 +843,69 @@ export default function TodayLessonPage() {
                           </div>
                         </div>
 
-                        {retellCorrectionReady ? (
+                        {day2Phase === "warmup" ? (
                           <div className="space-y-3">
-                            <p className="text-sm font-semibold text-slate-900">{t.correctionPromptTitle}</p>
-                            <p className="text-sm text-slate-800">{t.correctionPromptBody}</p>
-                            <textarea className="input min-h-36 text-slate-900" value={retellCorrectionPrompt} readOnly />
-                            <button
-                              className="btn-secondary w-full"
-                              onClick={async () => {
-                                await navigator.clipboard.writeText(retellCorrectionPrompt);
-                              }}
-                            >
-                              {t.copyPrompt}
-                            </button>
-                            <button className="btn-primary w-full" onClick={finishStep}>
-                              {t.completeRetell}
-                            </button>
+                            <p className="text-sm font-semibold text-slate-900">{t.warmupTitle}</p>
+                            <p className="text-sm text-slate-800">{t.warmupBody}</p>
+                            <div className="flex gap-2">
+                              <button className="btn-secondary flex-1" onClick={() => speak(retellSourceText)}>
+                                {t.playAll}
+                              </button>
+                              <button className="btn-primary flex-1" onClick={() => setDay2Phase("retell")}>
+                                {t.startRetelling}
+                              </button>
+                            </div>
                           </div>
-                        ) : currentRetellRound?.kind === "ai" ? (
+                        ) : day2Phase === "review" ? (
+                          <div className="space-y-3">
+                            <p className="text-sm font-semibold text-slate-900">{t.reviewTitle}</p>
+                            <p className="text-sm text-slate-800">{t.reviewBody}</p>
+                            {!!reviewText.trim() ? (
+                              <>
+                                <article className="input whitespace-pre-wrap text-slate-900">{reviewText}</article>
+                                {!reviewSentenceStageDone ? (
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-semibold text-slate-900">{t.reviewSentencePractice}</p>
+                                    <p className="text-sm text-slate-800">
+                                      {`${t.sentenceLabel} ${reviewSentenceIndex + 1}/${reviewSentences.length}`} / {reviewSentenceRepeatCount}/{reviewSentenceTarget}
+                                    </p>
+                                    <article className="input text-slate-900">{reviewSentences[reviewSentenceIndex]}</article>
+                                    <div className="flex gap-2">
+                                      <button className="btn-secondary flex-1" onClick={() => speak(reviewSentences[reviewSentenceIndex])}>
+                                        {t.playSentence}
+                                      </button>
+                                      <button className="btn-primary flex-1" onClick={countReviewReading}>
+                                        {t.readOnce}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-semibold text-slate-900">{t.reviewAllPractice}</p>
+                                    <p className="text-sm text-slate-800">
+                                      {`${t.allLabel} ${reviewAllRepeatCount}/${reviewAllTarget}`}
+                                    </p>
+                                    <div className="flex gap-2">
+                                      <button className="btn-secondary flex-1" onClick={() => speak(reviewText)}>
+                                        {t.playAll}
+                                      </button>
+                                      <button className="btn-primary flex-1" onClick={countReviewReading} disabled={reviewAllRepeatCount >= reviewAllTarget}>
+                                        {t.readOnce}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-sm text-slate-800">{t.noScript}</p>
+                            )}
+                            {reviewGuideDone && (
+                              <button className="btn-primary w-full" onClick={finishStep}>
+                                {t.finishDay2}
+                              </button>
+                            )}
+                          </div>
+                        ) : day2Phase === "ai" ? (
                           <div className="space-y-3">
                             <p className="text-sm font-semibold text-slate-900">{t.aiRoundTitle}</p>
                             <p className="text-sm text-slate-800">{t.aiRoundBody}</p>
@@ -805,17 +921,18 @@ export default function TodayLessonPage() {
                             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
                               {t.retellProgress}: {retellRoundIndex + 1}/{retellingRounds.length}
                             </div>
+                            <p className="text-sm font-semibold text-slate-900">{t.aiCorrectedTitle}</p>
                             <textarea
                               className="input min-h-28 text-slate-900"
-                              placeholder={t.aiTranscriptPlaceholder}
+                              placeholder={t.aiCorrectedPlaceholder}
                               value={retellTranscript}
                               onChange={(e) => setRetellTranscript(e.target.value)}
                             />
                             <button className="btn-primary w-full" onClick={completeRetellRound} disabled={!retellTranscript.trim()}>
-                              {t.aiFinish}
+                              {t.saveAiCorrection}
                             </button>
                           </div>
-                        ) : currentRetellRound ? (
+                        ) : day2Phase === "retell" && currentRetellRound ? (
                           <div className="space-y-3">
                             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                               <p className="text-sm font-semibold text-slate-900">{ja ? currentRetellRound.labelJa : currentRetellRound.labelEn}</p>
