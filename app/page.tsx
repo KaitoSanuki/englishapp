@@ -360,6 +360,7 @@ export default function TodayLessonPage() {
   const [day3CorrectionText, setDay3CorrectionText] = useState("");
   const [dialogueCardIndex, setDialogueCardIndex] = useState(0);
   const [lastAutoplayKey, setLastAutoplayKey] = useState("");
+  const [dialogueAutoplayReady, setDialogueAutoplayReady] = useState(false);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -416,6 +417,7 @@ export default function TodayLessonPage() {
     setDay3CorrectionText("");
     setDialogueCardIndex(0);
     setLastAutoplayKey("");
+    setDialogueAutoplayReady(false);
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -655,6 +657,7 @@ export default function TodayLessonPage() {
   useEffect(() => {
     if (transitioning || !!dayWrap || startCardDay !== null) {
       stopSpeech();
+      setDialogueAutoplayReady(false);
     }
   }, [transitioning, dayWrap, startCardDay]);
 
@@ -697,18 +700,30 @@ export default function TodayLessonPage() {
 
   useEffect(() => {
     if (task.id !== "step3_revised") return;
+    setDialogueAutoplayReady(false);
     if (transitioning || !!dayWrap || startCardDay !== null) return;
+    if (!currentDialogueCard?.ai) return;
+    const id = window.setTimeout(() => {
+      setDialogueAutoplayReady(true);
+    }, 350);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, startCardDay, task.id, transitioning]);
+
+  useEffect(() => {
+    if (task.id !== "step3_revised") return;
+    if (!dialogueAutoplayReady) return;
     if (!currentDialogueCard?.ai) return;
     if (currentDialogueKey === lastAutoplayKey) return;
     const id = window.setTimeout(() => {
       setLastAutoplayKey(currentDialogueKey);
       speak(currentDialogueCard.ai);
-    }, 450);
+    }, 120);
     return () => {
       window.clearTimeout(id);
-      stopSpeech();
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, lastAutoplayKey, startCardDay, task.id, transitioning]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, dialogueAutoplayReady, lastAutoplayKey, task.id]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
