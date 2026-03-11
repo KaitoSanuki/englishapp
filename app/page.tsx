@@ -359,6 +359,7 @@ export default function TodayLessonPage() {
   const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
   const [day3CorrectionText, setDay3CorrectionText] = useState("");
   const [dialogueCardIndex, setDialogueCardIndex] = useState(0);
+  const [lastAutoplayKey, setLastAutoplayKey] = useState("");
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -414,6 +415,7 @@ export default function TodayLessonPage() {
     setReviewAllRepeatCount(0);
     setDay3CorrectionText("");
     setDialogueCardIndex(0);
+    setLastAutoplayKey("");
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -617,6 +619,9 @@ export default function TodayLessonPage() {
   const dialogueLines = useMemo(() => parseDialogue(latestDay3Correction), [latestDay3Correction]);
   const dialogueCards = useMemo(() => buildDialogueCards(dialogueLines), [dialogueLines]);
   const currentDialogueCard = dialogueCards[dialogueCardIndex];
+  const currentDialogueKey = currentDialogueCard
+    ? `${task.id}:${dialogueCardIndex}:${currentDialogueCard.pass}:${currentDialogueCard.exchange}`
+    : "";
   const reviewText = day2CorrectionText.trim() || latestDay2Correction.trim() || retellTranscript.trim();
   const reviewSentences = useMemo(() => splitSentences(reviewText), [reviewText]);
   const sentenceTarget = 10;
@@ -694,14 +699,16 @@ export default function TodayLessonPage() {
     if (task.id !== "step3_revised") return;
     if (transitioning || !!dayWrap || startCardDay !== null) return;
     if (!currentDialogueCard?.ai) return;
+    if (currentDialogueKey === lastAutoplayKey) return;
     const id = window.setTimeout(() => {
+      setLastAutoplayKey(currentDialogueKey);
       speak(currentDialogueCard.ai);
-    }, 180);
+    }, 450);
     return () => {
       window.clearTimeout(id);
       stopSpeech();
     };
-  }, [currentDialogueCard?.ai, task.id, transitioning, dayWrap, startCardDay]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, lastAutoplayKey, startCardDay, task.id, transitioning]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
