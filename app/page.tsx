@@ -361,6 +361,7 @@ export default function TodayLessonPage() {
   const [dialogueCardIndex, setDialogueCardIndex] = useState(0);
   const [lastAutoplayKey, setLastAutoplayKey] = useState("");
   const [dialogueAutoplayReady, setDialogueAutoplayReady] = useState(false);
+  const [speechPrimed, setSpeechPrimed] = useState(false);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -418,6 +419,7 @@ export default function TodayLessonPage() {
     setDialogueCardIndex(0);
     setLastAutoplayKey("");
     setDialogueAutoplayReady(false);
+    setSpeechPrimed(false);
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -466,6 +468,7 @@ export default function TodayLessonPage() {
   const say = (v: string) => t.chat.replace("{v}", v);
 
   const finishStep = () => {
+    primeSpeech();
     stopSpeech();
     const isLastTaskOfDay = doneCount + 1 >= dayTasks.length;
     const isLastDay = frozenDay >= weekPlan.length - 1;
@@ -493,6 +496,7 @@ export default function TodayLessonPage() {
   const isFinalQuestion = (curKey: string) => visible.every((f) => f.key === curKey || hasValue(values[f.key]));
 
   const submitCurrent = () => {
+    primeSpeech();
     if (!current || !draft.trim()) return;
     save(current.key, draft.trim());
     setFeedback(say(draft.trim()));
@@ -500,6 +504,7 @@ export default function TodayLessonPage() {
   };
 
   const submitYesNo = (v: "yes" | "no") => {
+    primeSpeech();
     if (!current) return;
     save(current.key, v);
     setFeedback(say(v === "yes" ? t.yes : t.no));
@@ -507,6 +512,7 @@ export default function TodayLessonPage() {
   };
 
   const goBack = () => {
+    primeSpeech();
     stopSpeech();
     if (task.id === "step2_script" && !current && step2Phase === "paste") {
       setStep2Phase("prompt");
@@ -539,6 +545,7 @@ export default function TodayLessonPage() {
   };
 
   const skip = () => {
+    primeSpeech();
     stopSpeech();
     if (current) {
       save(current.key, "__skip__");
@@ -582,12 +589,14 @@ export default function TodayLessonPage() {
 
   const closeDay = () => {
     if (!dayWrap) return;
+    primeSpeech();
     stopSpeech();
     if (dayWrap.nextDay !== null) setStartCardDay(dayWrap.nextDay);
     setDayWrap(null);
   };
 
   const startNextDay = () => {
+    primeSpeech();
     stopSpeech();
     setStartCardDay(null);
   };
@@ -652,6 +661,23 @@ export default function TodayLessonPage() {
   const stopSpeech = () => {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
+  };
+
+  const primeSpeech = () => {
+    if (typeof window === "undefined") return;
+    if (speechPrimed) return;
+    try {
+      const utterance = new SpeechSynthesisUtterance(" ");
+      utterance.volume = 0;
+      utterance.rate = 1;
+      window.speechSynthesis.speak(utterance);
+      window.setTimeout(() => {
+        window.speechSynthesis.cancel();
+        setSpeechPrimed(true);
+      }, 10);
+    } catch {
+      setSpeechPrimed(true);
+    }
   };
 
   useEffect(() => {
