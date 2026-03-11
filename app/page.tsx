@@ -690,6 +690,7 @@ export default function TodayLessonPage() {
 
   useEffect(() => {
     if (task.id !== "step3_revised") return;
+    if (transitioning || !!dayWrap || startCardDay !== null) return;
     if (!currentDialogueCard?.ai) return;
     const id = window.setTimeout(() => {
       speak(currentDialogueCard.ai);
@@ -698,7 +699,7 @@ export default function TodayLessonPage() {
       window.clearTimeout(id);
       stopSpeech();
     };
-  }, [currentDialogueCard?.ai, task.id]);
+  }, [currentDialogueCard?.ai, task.id, transitioning, dayWrap, startCardDay]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
