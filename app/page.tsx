@@ -21,6 +21,7 @@ type TaskDef = { id: string; en: string; ja: string; fields: FieldDef[] };
 type DayWrap = { fromDay: number; nextDay: number | null };
 type Step2Phase = "prompt" | "paste";
 type Day2Phase = "warmup" | "retell" | "ai" | "review";
+type Day3Phase = "intro" | "cards";
 type RetellingRound = {
   id: string;
   mode: "3" | "2" | "1";
@@ -116,6 +117,8 @@ const TX = {
     step6Explain: "AI\u3068\u4f1a\u8a71\u3057\u3066\u3001\u6700\u5f8c\u306b\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u53d7\u3051\u53d6\u308a\u307e\u3059\u3002",
     step7Explain: "AI\u304c\u8fd4\u3057\u305f\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u4fdd\u5b58\u3057\u307e\u3059\u3002",
     step3RevisedExplain: "1\u5f80\u5fa9\u3054\u3068\u306b\u97f3\u8aad\u3057\u307e\u3059\u3002AI\u306e\u30bb\u30ea\u30d5\u306f\u81ea\u52d5\u518d\u751f\u3055\u308c\u307e\u3059\u3002",
+    step3RevisedIntro: "\u3053\u308c\u304b\u3089\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4\u5fa9\u7fd2\u306e\u97f3\u8aad\u3092\u3057\u307e\u3059\u3002",
+    beginDialogueRead: "\u9032\u3080",
     continueToSave: "AI\u3068\u306e\u4f1a\u8a71\u3092\u7d42\u3048\u3066\u6b21\u3078",
     exchangeTitle: "\u5bfe\u8a71\u30ab\u30fc\u30c9",
     replayAi: "AI\u306e\u30bb\u30ea\u30d5\u3092\u3082\u3046\u4e00\u5ea6\u805e\u304f",
@@ -202,6 +205,8 @@ const TX = {
     step6Explain: "Talk with AI and receive one corrected dialogue at the end.",
     step7Explain: "Save the corrected dialogue returned by AI.",
     step3RevisedExplain: "Read one exchange per card. AI lines play automatically.",
+    step3RevisedIntro: "You are about to start the roleplay review reading.",
+    beginDialogueRead: "Continue",
     continueToSave: "I Finished the AI Conversation",
     exchangeTitle: "Dialogue Card",
     replayAi: "Replay AI Line",
@@ -358,6 +363,7 @@ export default function TodayLessonPage() {
   const [reviewSentenceRepeatCount, setReviewSentenceRepeatCount] = useState(0);
   const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
   const [day3CorrectionText, setDay3CorrectionText] = useState("");
+  const [day3Phase, setDay3Phase] = useState<Day3Phase>("intro");
   const [dialogueCardIndex, setDialogueCardIndex] = useState(0);
   const [lastAutoplayKey, setLastAutoplayKey] = useState("");
   const [dialogueAutoplayReady, setDialogueAutoplayReady] = useState(false);
@@ -416,6 +422,7 @@ export default function TodayLessonPage() {
     setReviewSentenceRepeatCount(0);
     setReviewAllRepeatCount(0);
     setDay3CorrectionText("");
+    setDay3Phase("intro");
     setDialogueCardIndex(0);
     setLastAutoplayKey("");
     setDialogueAutoplayReady(false);
@@ -537,6 +544,12 @@ export default function TodayLessonPage() {
         return;
       }
     }
+    if (task.id === "step3_revised" && !current) {
+      if (day3Phase === "cards") {
+        setDay3Phase("intro");
+        return;
+      }
+    }
     if (lastAnswered) {
       save(lastAnswered.key, "");
       return;
@@ -576,6 +589,16 @@ export default function TodayLessonPage() {
         return;
       }
       if (day2Phase === "review") {
+        finishStep();
+        return;
+      }
+    }
+    if (task.id === "step3_revised" && !current) {
+      if (day3Phase === "intro") {
+        setDay3Phase("cards");
+        return;
+      }
+      if (day3Phase === "cards" && dialogueCardIndex >= dialogueCards.length) {
         finishStep();
         return;
       }
@@ -726,6 +749,7 @@ export default function TodayLessonPage() {
 
   useEffect(() => {
     if (task.id !== "step3_revised") return;
+    if (day3Phase !== "cards") return;
     setDialogueAutoplayReady(false);
     if (transitioning || !!dayWrap || startCardDay !== null) return;
     if (!currentDialogueCard?.ai) return;
@@ -735,10 +759,11 @@ export default function TodayLessonPage() {
     return () => {
       window.clearTimeout(id);
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, startCardDay, task.id, transitioning]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, day3Phase, dayWrap, startCardDay, task.id, transitioning]);
 
   useEffect(() => {
     if (task.id !== "step3_revised") return;
+    if (day3Phase !== "cards") return;
     if (!dialogueAutoplayReady) return;
     if (!currentDialogueCard?.ai) return;
     if (currentDialogueKey === lastAutoplayKey) return;
@@ -749,7 +774,7 @@ export default function TodayLessonPage() {
     return () => {
       window.clearTimeout(id);
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, dialogueAutoplayReady, lastAutoplayKey, task.id]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, day3Phase, dialogueAutoplayReady, lastAutoplayKey, task.id]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
@@ -793,6 +818,8 @@ export default function TodayLessonPage() {
     !!dayWrap ||
     startCardDay !== null
       ? false
+      : task.id === "step3_revised" && !current
+        ? day3Phase === "cards" || hasAnyCompleted || !!lastAnswered
       : task.id === "step4_321" && !current
         ? day2Phase !== "warmup" || retellRoundIndex > 0 || hasAnyCompleted || !!lastAnswered
         : task.id === "step2_script" && !current && step2Phase === "paste"
@@ -991,7 +1018,14 @@ export default function TodayLessonPage() {
                     <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
                     <h3 className="text-base font-bold text-slate-900">{t.dialogueReadTitle}</h3>
                     <p className="text-sm text-slate-800">{t.step3RevisedExplain}</p>
-                    {!!dialogueCards.length ? (
+                    {day3Phase === "intro" ? (
+                      <div className="space-y-3">
+                        <p className="text-sm text-slate-800">{t.step3RevisedIntro}</p>
+                        <button className="btn-primary w-full" onClick={() => setDay3Phase("cards")}>
+                          {t.beginDialogueRead}
+                        </button>
+                      </div>
+                    ) : !!dialogueCards.length ? (
                       <>
                         {currentDialogueCard ? (
                           <>
