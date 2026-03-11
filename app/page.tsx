@@ -398,10 +398,6 @@ export default function TodayLessonPage() {
   }, [frozenDay, task.id, current?.key]);
 
   useEffect(() => {
-    stopSpeech();
-  }, [frozenDay, task.id, current?.key, startCardDay, dayWrap, transitioning]);
-
-  useEffect(() => {
     setStep2Phase("prompt");
     setStep2PasteText("");
     setSentenceIndex(0);
@@ -650,6 +646,12 @@ export default function TodayLessonPage() {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
   };
+
+  useEffect(() => {
+    if (transitioning || !!dayWrap || startCardDay !== null) {
+      stopSpeech();
+    }
+  }, [transitioning, dayWrap, startCardDay]);
 
   const speak = (payload: string) => {
     if (!payload) return;
