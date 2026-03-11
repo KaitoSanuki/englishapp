@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
-import { step2Prompt, step5Prompt, step6Prompt, step7Prompt } from "@/lib/prompts";
+import { step2Prompt, step5Prompt, step6Prompt } from "@/lib/prompts";
 import { PromptCard } from "@/components/PromptCard";
 import { Recorder } from "@/components/Recorder";
 import { Timer321 } from "@/components/Timer321";
@@ -28,6 +28,10 @@ type RetellingRound = {
   labelJa: string;
   labelEn: string;
   kind: "solo" | "ai";
+};
+type DialogueLine = {
+  speaker: "AI" | "User";
+  text: string;
 };
 
 const TX = {
@@ -98,7 +102,16 @@ const TX = {
     reviewBody: "\u6dfb\u524a\u5f8c\u306e\u5168\u6587\u3092\u30011\u65e5\u76ee\u306e\u534a\u5206\u306e\u56de\u6570\u3067\u97f3\u8aad\u3057\u307e\u3059\u3002",
     reviewSentencePractice: "1\u6587\u305a\u30645\u56de\u97f3\u8aad",
     reviewAllPractice: "\u5168\u65872\u56de\u97f3\u8aad",
-    finishDay2: "2\u65e5\u76ee\u3092\u7d42\u3048\u308b"
+    finishDay2: "2\u65e5\u76ee\u3092\u7d42\u3048\u308b",
+    day3Goal: "1\u65e5\u76ee\u30682\u65e5\u76ee\u306e\u53f0\u672c\u3092\u6d3b\u304b\u3057\u3066\u3001\u5f80\u5fa9\u4f1a\u8a71\u3092\u7d9a\u3051\u308b",
+    day3PasteTitle: "AI\u306e\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u4fdd\u5b58",
+    day3PastePlaceholder: "AI\u304c\u6700\u5f8c\u306b\u51fa\u3057\u305f\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u8cbc\u308a\u4ed8\u3051",
+    day3SaveDialogue: "\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u4fdd\u5b58",
+    dialogueReadTitle: "\u5bfe\u8a71\u5f62\u5f0f\u3067\u97f3\u8aad",
+    dialogueReadBody: "AI\u306e\u30bb\u30ea\u30d5\u306f\u30a2\u30d7\u30ea\u304c\u8aad\u307f\u4e0a\u3052\u3001User\u306e\u30bb\u30ea\u30d5\u3092\u97f3\u8aad\u3057\u307e\u3059\u3002",
+    dialoguePass: "\u901a\u3057",
+    dialogueDone: "\u3053\u306e\u901a\u3057\u3092\u5b8c\u4e86",
+    finishDialogueRead: "\u4fee\u6b63\u7248\u97f3\u8aad\u3092\u5b8c\u4e86"
   },
   en: {
     title: "Today Lesson",
@@ -167,7 +180,16 @@ const TX = {
     reviewBody: "Read the corrected script with about half the volume of day 1.",
     reviewSentencePractice: "Read each sentence 5 times",
     reviewAllPractice: "Read full script 2 times",
-    finishDay2: "Finish Day 2"
+    finishDay2: "Finish Day 2",
+    day3Goal: "Use day 1 and day 2 scripts in a back-and-forth conversation",
+    day3PasteTitle: "Save Corrected Dialogue from AI",
+    day3PastePlaceholder: "Paste the corrected dialogue AI outputs at the end",
+    day3SaveDialogue: "Save Corrected Dialogue",
+    dialogueReadTitle: "Read as Dialogue",
+    dialogueReadBody: "The app reads AI lines. You read only User lines aloud.",
+    dialoguePass: "Pass",
+    dialogueDone: "Complete This Pass",
+    finishDialogueRead: "Finish Revised Dialogue Reading"
   }
 } as const;
 
@@ -194,12 +216,9 @@ const weekPlan: TaskDef[][] = [
       id: "step6_roleplay",
       en: "Start roleplay",
       ja: "\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4\u958b\u59cb",
-      fields: [
-        { key: "scene", en: "Scene?", ja: "\u30b7\u30fc\u30f3\u306f\uff1f", type: "text" },
-        { key: "roleGoal", en: "Goal?", ja: "\u30b4\u30fc\u30eb\u306f\uff1f", type: "text" }
-      ]
+      fields: []
     },
-    { id: "step7_correct", en: "Correction", ja: "\u6dfb\u524a", fields: [{ key: "transcript", en: "Paste transcript", ja: "\u6587\u5b57\u8d77\u3053\u3057\u3092\u8cbc\u308b", type: "textarea" }] },
+    { id: "step7_correct", en: "Correction", ja: "\u6dfb\u524a", fields: [] },
     { id: "step3_revised", en: "Read revised text", ja: "\u4fee\u6b63\u7248\u3092\u97f3\u8aad", fields: [] }
   ],
   [
@@ -238,6 +257,18 @@ const splitSentences = (text: string) =>
     .split(/(?<=[.!?])\s+/)
     .map((v) => v.trim())
     .filter(Boolean);
+
+const parseDialogue = (text: string): DialogueLine[] =>
+  text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (/^ai\s*:/i.test(line)) return { speaker: "AI" as const, text: line.replace(/^ai\s*:\s*/i, "").trim() };
+      if (/^user\s*:/i.test(line)) return { speaker: "User" as const, text: line.replace(/^user\s*:\s*/i, "").trim() };
+      return null;
+    })
+    .filter((line): line is DialogueLine => !!line && !!line.text);
 
 const retellingRounds: RetellingRound[] = [
   { id: "3-1", mode: "3", seconds: 180, labelJa: "3分 1回目", labelEn: "3 min · Round 1", kind: "solo" },
@@ -292,6 +323,8 @@ export default function TodayLessonPage() {
   const [reviewSentenceIndex, setReviewSentenceIndex] = useState(0);
   const [reviewSentenceRepeatCount, setReviewSentenceRepeatCount] = useState(0);
   const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
+  const [day3CorrectionText, setDay3CorrectionText] = useState("");
+  const [dialoguePassCount, setDialoguePassCount] = useState(0);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -345,6 +378,8 @@ export default function TodayLessonPage() {
     setReviewSentenceIndex(0);
     setReviewSentenceRepeatCount(0);
     setReviewAllRepeatCount(0);
+    setDay3CorrectionText("");
+    setDialoguePassCount(0);
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -516,18 +551,32 @@ export default function TodayLessonPage() {
   };
 
   const step2 = step2Prompt(effectiveCefr, values.topic || activeWeek.topicTitle, state.language);
-  const step6 = step6Prompt(effectiveCefr, values.scene || "", values.roleGoal || "", Number(values.extendedMinutes || 5), state.language);
-  const step7 = step7Prompt(effectiveCefr, values.transcript || "", state.language);
+  const day3ReferenceScripts = [latestScript?.enScript || "", latestRoleplay?.correctionText || ""].filter(Boolean);
+  const step6 = step6Prompt(
+    effectiveCefr,
+    activeWeek.topicTitle,
+    t.day3Goal,
+    task.id === "step6_extended" ? Number(values.extendedMinutes || 5) : task.id === "step6_advanced" ? 5 : 5,
+    day3ReferenceScripts,
+    state.language
+  );
   const step5 = step5Prompt(effectiveCefr, values.weekText || "", state.language);
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
   const hideProgress = !!dayWrap || startCardDay !== null;
-  const readText = task.id === "step3_read" ? latestScript?.enScript || "" : latestRoleplay?.correctionText || latestScript?.enScript || "";
+  const latestDay3Correction = day3CorrectionText.trim() || latestRoleplay?.correctionText || "";
+  const readText =
+    task.id === "step3_read"
+      ? latestScript?.enScript || ""
+      : task.id === "step3_revised"
+        ? latestDay3Correction || latestScript?.enScript || ""
+        : latestRoleplay?.correctionText || latestScript?.enScript || "";
   const retellSourceText = latestScript?.enScript || "";
   const retellKeywords = extractKeywords(retellSourceText);
   const currentRetellRound = retellingRounds[retellRoundIndex];
   const retellElapsed = currentRetellRound ? currentRetellRound.seconds - retellRemaining : 0;
   const latestDay2Correction = latestRoleplay?.correctionText || "";
   const sentences = useMemo(() => splitSentences(readText), [readText]);
+  const dialogueLines = useMemo(() => parseDialogue(latestDay3Correction), [latestDay3Correction]);
   const reviewText = day2CorrectionText.trim() || latestDay2Correction.trim() || retellTranscript.trim();
   const reviewSentences = useMemo(() => splitSentences(reviewText), [reviewText]);
   const sentenceTarget = 10;
@@ -774,7 +823,7 @@ export default function TodayLessonPage() {
                   )
                 )}
 
-                {(task.id === "step3_read" || task.id === "step3_revised" || task.id === "step3_review") && (
+                {(task.id === "step3_read" || task.id === "step3_review") && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
                     <h3 className="text-base font-bold text-slate-900">{t.scriptPreview}</h3>
                     {!!readText.trim() ? (
@@ -815,6 +864,43 @@ export default function TodayLessonPage() {
                         {readingGuideDone && (
                           <button className="btn-primary w-full" onClick={finishStep}>
                             {t.readingGuideDone}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-800">{t.noScript}</p>
+                    )}
+                  </section>
+                )}
+
+                {task.id === "step3_revised" && (
+                  <section className="glass rounded-xl2 p-4 space-y-3">
+                    <h3 className="text-base font-bold text-slate-900">{t.dialogueReadTitle}</h3>
+                    <p className="text-sm text-slate-800">{t.dialogueReadBody}</p>
+                    {!!dialogueLines.length ? (
+                      <>
+                        <div className="space-y-2">
+                          {dialogueLines.map((line, index) => (
+                            <div key={`${line.speaker}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{line.speaker}</p>
+                              <p className="mt-1 text-sm text-slate-900">{line.text}</p>
+                              {line.speaker === "AI" && (
+                                <button className="btn-secondary mt-3" onClick={() => speak(line.text)}>
+                                  {t.playSentence}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+                          {t.dialoguePass}: {dialoguePassCount}/3
+                        </div>
+                        <button className="btn-primary w-full" onClick={() => setDialoguePassCount((v) => Math.min(3, v + 1))} disabled={dialoguePassCount >= 3}>
+                          {t.dialogueDone}
+                        </button>
+                        {dialoguePassCount >= 3 && (
+                          <button className="btn-primary w-full" onClick={finishStep}>
+                            {t.finishDialogueRead}
                           </button>
                         )}
                       </>
@@ -1023,24 +1109,36 @@ export default function TodayLessonPage() {
                 )}
 
                 {task.id === "step7_correct" && (
-                  <PromptCard
-                    title="Step7 Prompt"
-                    prompt={step7}
-                    language={state.language}
-                    onSavePaste={(text) => {
-                      saveRoleplay({
-                        id: crypto.randomUUID(),
-                        weekId: activeWeek.id,
-                        promptText: step6,
-                        transcriptText: values.transcript || "",
-                        correctionText: text,
-                        materialDialogueText: text,
-                        phrasesText: text,
-                        createdAt: new Date().toISOString()
-                      });
-                      finishStep();
-                    }}
-                  />
+                  <section className="glass rounded-xl2 p-4 space-y-3">
+                    <h3 className="text-base font-bold text-slate-900">{t.day3PasteTitle}</h3>
+                    <textarea
+                      className="input min-h-32 text-slate-900"
+                      placeholder={t.day3PastePlaceholder}
+                      value={day3CorrectionText}
+                      onChange={(e) => setDay3CorrectionText(e.target.value)}
+                    />
+                    <button
+                      className="btn-primary w-full"
+                      onClick={() => {
+                        const corrected = day3CorrectionText.trim();
+                        if (!corrected) return;
+                        saveRoleplay({
+                          id: crypto.randomUUID(),
+                          weekId: activeWeek.id,
+                          promptText: step6,
+                          transcriptText: latestRoleplay?.transcriptText || "",
+                          correctionText: corrected,
+                          materialDialogueText: corrected,
+                          phrasesText: corrected,
+                          createdAt: new Date().toISOString()
+                        });
+                        finishStep();
+                      }}
+                      disabled={!day3CorrectionText.trim()}
+                    >
+                      {t.day3SaveDialogue}
+                    </button>
+                  </section>
                 )}
 
                 {task.id === "step5_review" && <PromptCard title="Step5 Prompt" prompt={step5} language={state.language} onSavePaste={() => finishStep()} />}

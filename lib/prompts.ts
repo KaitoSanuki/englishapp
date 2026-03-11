@@ -46,20 +46,35 @@ export const step5Prompt = (cefr: CEFR, english: string, _lang: "en" | "ja") =>
     english
   ].join("\n");
 
-export const step6Prompt = (cefr: CEFR, scene: string, goal: string, durationMin: number, _lang: "en" | "ja") =>
+export const step6Prompt = (
+  cefr: CEFR,
+  topic: string,
+  goal: string,
+  durationMin: number,
+  referenceScripts: string[],
+  _lang: "en" | "ja"
+) =>
   [
     "Let's do a roleplay in AI voice/chat mode. You are my conversation partner.",
     "",
-    `Scene: ${scene || "everyday conversation"}`,
-    `Goal: ${goal || "keep the conversation for at least 3 exchanges"}`,
+    `Topic: ${topic || "everyday conversation"}`,
+    `Goal: ${goal || "help me reuse and expand the reference scripts in a natural conversation"}`,
     `Target duration: ${durationMin} min`,
+    "",
+    "Reference scripts to reuse naturally:",
+    ...referenceScripts.map((script, index) => `[Reference ${index + 1}]\n${script}`),
     "",
     "Rules:",
     `- Use simple English around CEFR ${cefr}`,
     "- Keep each turn short",
     '- Continue until I say "stop"',
-    "- Do not correct during the roleplay",
-    "- If I get stuck, ask follow-up questions",
+    "- Do not explicitly correct me during the roleplay",
+    "- If my English is unnatural, respond with a natural recast in your own reply, like how an adult speaks to a child naturally",
+    "- Keep the conversation moving and help me reuse the reference scripts",
+    '- When I say "stop", output one final corrected dialogue with speaker labels in this format only:',
+    "AI: ...",
+    "User: ...",
+    "- The final corrected dialogue should be easy to read aloud as a roleplay script",
     "",
     "Start with the first line now."
   ].join("\n");
