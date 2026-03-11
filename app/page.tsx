@@ -398,6 +398,10 @@ export default function TodayLessonPage() {
   }, [frozenDay, task.id, current?.key]);
 
   useEffect(() => {
+    stopSpeech();
+  }, [frozenDay, task.id, current?.key, startCardDay, dayWrap, transitioning]);
+
+  useEffect(() => {
     setStep2Phase("prompt");
     setStep2PasteText("");
     setSentenceIndex(0);
@@ -428,17 +432,16 @@ export default function TodayLessonPage() {
   useEffect(() => {
     if (!transitioning) return;
     setTransitionProgress(0);
+    const startedAt = Date.now();
     const id = setInterval(() => {
-      setTransitionProgress((p) => {
-        const next = p + 4;
-        if (next >= 100) {
-          clearInterval(id);
-          setTransitioning(false);
-          return 100;
-        }
-        return next;
-      });
-    }, 120);
+      const elapsed = Date.now() - startedAt;
+      const next = Math.min(100, (elapsed / 3000) * 100);
+      setTransitionProgress(next);
+      if (next >= 100) {
+        clearInterval(id);
+        setTransitioning(false);
+      }
+    }, 50);
     return () => clearInterval(id);
   }, [transitioning]);
 
@@ -463,6 +466,7 @@ export default function TodayLessonPage() {
   const say = (v: string) => t.chat.replace("{v}", v);
 
   const finishStep = () => {
+    stopSpeech();
     const isLastTaskOfDay = doneCount + 1 >= dayTasks.length;
     const isLastDay = frozenDay >= weekPlan.length - 1;
     if (task.id === "step2_script") {
@@ -503,6 +507,7 @@ export default function TodayLessonPage() {
   };
 
   const goBack = () => {
+    stopSpeech();
     if (task.id === "step2_script" && !current && step2Phase === "paste") {
       setStep2Phase("prompt");
       return;
@@ -534,6 +539,7 @@ export default function TodayLessonPage() {
   };
 
   const skip = () => {
+    stopSpeech();
     if (current) {
       save(current.key, "__skip__");
       setFeedback(say(t.skipped));
@@ -576,11 +582,13 @@ export default function TodayLessonPage() {
 
   const closeDay = () => {
     if (!dayWrap) return;
+    stopSpeech();
     if (dayWrap.nextDay !== null) setStartCardDay(dayWrap.nextDay);
     setDayWrap(null);
   };
 
   const startNextDay = () => {
+    stopSpeech();
     setStartCardDay(null);
   };
 
@@ -638,9 +646,14 @@ export default function TodayLessonPage() {
     .filter(Boolean)
     .join("\n");
 
+  const stopSpeech = () => {
+    if (typeof window === "undefined") return;
+    window.speechSynthesis.cancel();
+  };
+
   const speak = (payload: string) => {
     if (!payload) return;
-    window.speechSynthesis.cancel();
+    stopSpeech();
     const u = new SpeechSynthesisUtterance(payload);
     u.lang = "en-US";
     u.rate = 0.95;
@@ -678,13 +691,20 @@ export default function TodayLessonPage() {
   useEffect(() => {
     if (task.id !== "step3_revised") return;
     if (!currentDialogueCard?.ai) return;
-    speak(currentDialogueCard.ai);
+    const id = window.setTimeout(() => {
+      speak(currentDialogueCard.ai);
+    }, 180);
+    return () => {
+      window.clearTimeout(id);
+      stopSpeech();
+    };
   }, [currentDialogueCard?.ai, task.id]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
   const completeRetellRound = () => {
     if (!currentRetellRound) return;
+    stopSpeech();
     saveRetelling({
       id: crypto.randomUUID(),
       weekId: activeWeek.id,
@@ -945,7 +965,10 @@ export default function TodayLessonPage() {
                             </div>
                             <button
                               className="btn-primary w-full"
-                              onClick={() => setDialogueCardIndex((v) => Math.min(dialogueCards.length, v + 1))}
+                              onClick={() => {
+                                stopSpeech();
+                                setDialogueCardIndex((v) => Math.min(dialogueCards.length, v + 1));
+                              }}
                               disabled={dialogueCardIndex >= dialogueCards.length}
                             >
                               {t.readExchangeDone}
