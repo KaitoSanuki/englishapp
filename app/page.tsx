@@ -22,6 +22,7 @@ type DayWrap = { fromDay: number; nextDay: number | null };
 type Step2Phase = "prompt" | "paste";
 type Day2Phase = "warmup" | "retell" | "ai" | "review";
 type Day3Phase = "intro" | "cards";
+type IntroCopy = { titleJa: string; bodyJa: string; titleEn: string; bodyEn: string };
 type RetellingRound = {
   id: string;
   mode: "3" | "2" | "1";
@@ -337,6 +338,81 @@ const extractKeywords = (text: string) => {
   return ordered.slice(0, 8);
 };
 
+const introCopyByTask: Record<string, IntroCopy> = {
+  step3_read: {
+    titleJa: "これから音読します",
+    bodyJa: "1日目の台本を声に出して読み、口に慣らします。",
+    titleEn: "Reading Aloud Next",
+    bodyEn: "Read your day 1 script aloud to warm up your speaking."
+  },
+  record_baseline: {
+    titleJa: "これから基準録音します",
+    bodyJa: "今の状態を残すために、台本を録音します。",
+    titleEn: "Baseline Recording Next",
+    bodyEn: "Record the script to capture your starting point."
+  },
+  step4_321: {
+    titleJa: "これから3-2-1リテリングです",
+    bodyJa: "キーワードを見ながら、長く話してから短く圧縮していきます。",
+    titleEn: "3-2-1 Retelling Next",
+    bodyEn: "Use keywords to retell, then compress the same content into shorter rounds."
+  },
+  step6_roleplay: {
+    titleJa: "これからAIと話します",
+    bodyJa: "1日目と2日目の内容を使いながら、会話の往復を練習します。",
+    titleEn: "AI Conversation Next",
+    bodyEn: "Talk with AI and reuse what you built on day 1 and day 2."
+  },
+  step7_correct: {
+    titleJa: "これから修正版を保存します",
+    bodyJa: "AIが最後に返した修正版対話を貼って、次の音読に使います。",
+    titleEn: "Save Corrected Dialogue Next",
+    bodyEn: "Paste the corrected dialogue from AI so you can read it next."
+  },
+  step3_revised: {
+    titleJa: "これからロールプレイ復習の音読です",
+    bodyJa: "対話形式で読みます。AIのセリフは自動再生され、Userだけ声に出します。",
+    titleEn: "Roleplay Review Reading Next",
+    bodyEn: "Read the corrected dialogue. AI lines autoplay and you read the User lines."
+  },
+  step3_review: {
+    titleJa: "これから復習音読します",
+    bodyJa: "今週の台本をもう一度口に出して定着させます。",
+    titleEn: "Review Reading Next",
+    bodyEn: "Read the script again to reinforce the phrasing."
+  },
+  step4_light: {
+    titleJa: "これから軽い3-2-1です",
+    bodyJa: "短めに回して、言い直しの反射を維持します。",
+    titleEn: "Light 3-2-1 Next",
+    bodyEn: "Run a shorter retelling round to keep fluency active."
+  },
+  step6_advanced: {
+    titleJa: "これから応用会話です",
+    bodyJa: "これまでの台本を使いながら、少し応用した会話に広げます。",
+    titleEn: "Advanced AI Conversation Next",
+    bodyEn: "Expand the earlier scripts into a slightly more advanced conversation."
+  },
+  step6_extended: {
+    titleJa: "これから長めの会話です",
+    bodyJa: "5分以上の会話で、話を広げ続ける練習をします。",
+    titleEn: "Extended AI Conversation Next",
+    bodyEn: "Keep the conversation going for a longer stretch."
+  },
+  step5_review: {
+    titleJa: "これから週の振り返りです",
+    bodyJa: "今週話した英語をまとめて見直し、修正版を整理します。",
+    titleEn: "Weekly Review Next",
+    bodyEn: "Review the English you used this week and organize corrections."
+  },
+  record_compare: {
+    titleJa: "これから録音を比較します",
+    bodyJa: "最後に録音して、最初の自分と聞き比べます。",
+    titleEn: "Recording Comparison Next",
+    bodyEn: "Record again and compare with your first recording."
+  }
+};
+
 export default function TodayLessonPage() {
   const { state, activeWeek, saveTaskRun, saveWeek, setWizardAnswer, undoLastCompletedTask, saveScript, saveRoleplay, saveRetelling, saveAudio } = useAppState();
   const ja = state.language === "ja";
@@ -368,6 +444,7 @@ export default function TodayLessonPage() {
   const [lastAutoplayKey, setLastAutoplayKey] = useState("");
   const [dialogueAutoplayReady, setDialogueAutoplayReady] = useState(false);
   const [speechPrimed, setSpeechPrimed] = useState(false);
+  const [showTaskIntro, setShowTaskIntro] = useState(false);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -427,7 +504,16 @@ export default function TodayLessonPage() {
     setLastAutoplayKey("");
     setDialogueAutoplayReady(false);
     setSpeechPrimed(false);
+    setShowTaskIntro(false);
   }, [frozenDay, task.id]);
+
+  useEffect(() => {
+    if (!current && !!introCopyByTask[task.id]) {
+      setShowTaskIntro(true);
+      return;
+    }
+    setShowTaskIntro(false);
+  }, [current, task.id]);
 
   useEffect(() => {
     if (task.id !== "step4_321") return;
@@ -521,6 +607,10 @@ export default function TodayLessonPage() {
   const goBack = () => {
     primeSpeech();
     stopSpeech();
+    if (!current && !!introCopyByTask[task.id] && !showTaskIntro) {
+      setShowTaskIntro(true);
+      return;
+    }
     if (task.id === "step2_script" && !current && step2Phase === "paste") {
       setStep2Phase("prompt");
       return;
@@ -564,6 +654,10 @@ export default function TodayLessonPage() {
       save(current.key, "__skip__");
       setFeedback(say(t.skipped));
       if (isFinalQuestion(current.key) && !taskHasAction(task.id)) setTimeout(finishStep, 220);
+      return;
+    }
+    if (!current && !!introCopyByTask[task.id] && showTaskIntro) {
+      setShowTaskIntro(false);
       return;
     }
     if (task.id === "step4_321" && !current) {
@@ -818,6 +912,8 @@ export default function TodayLessonPage() {
     !!dayWrap ||
     startCardDay !== null
       ? false
+      : !current && !!introCopyByTask[task.id] && !showTaskIntro
+        ? true
       : task.id === "step3_revised" && !current
         ? day3Phase === "cards" || hasAnyCompleted || !!lastAnswered
       : task.id === "step4_321" && !current
@@ -914,6 +1010,19 @@ export default function TodayLessonPage() {
                   </p>
                 )}
               </div>
+            ) : showTaskIntro && introCopyByTask[task.id] ? (
+              <section className="glass rounded-xl2 p-4 space-y-3">
+                <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
+                <h3 className="text-base font-bold text-slate-900">
+                  {ja ? introCopyByTask[task.id].titleJa : introCopyByTask[task.id].titleEn}
+                </h3>
+                <p className="text-sm text-slate-800">
+                  {ja ? introCopyByTask[task.id].bodyJa : introCopyByTask[task.id].bodyEn}
+                </p>
+                <button className="btn-primary w-full" onClick={() => setShowTaskIntro(false)}>
+                  {t.beginDialogueRead}
+                </button>
+              </section>
             ) : (
               <div className="space-y-3">
                 {task.id === "step2_script" && (
