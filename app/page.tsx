@@ -111,7 +111,15 @@ const TX = {
     dialogueReadBody: "AI\u306e\u30bb\u30ea\u30d5\u306f\u30a2\u30d7\u30ea\u304c\u8aad\u307f\u4e0a\u3052\u3001User\u306e\u30bb\u30ea\u30d5\u3092\u97f3\u8aad\u3057\u307e\u3059\u3002",
     dialoguePass: "\u901a\u3057",
     dialogueDone: "\u3053\u306e\u901a\u3057\u3092\u5b8c\u4e86",
-    finishDialogueRead: "\u4fee\u6b63\u7248\u97f3\u8aad\u3092\u5b8c\u4e86"
+    finishDialogueRead: "\u4fee\u6b63\u7248\u97f3\u8aad\u3092\u5b8c\u4e86",
+    stepExplainTitle: "\u6b21\u306b\u3084\u308b\u3053\u3068",
+    step6Explain: "AI\u3068\u4f1a\u8a71\u3057\u3066\u3001\u6700\u5f8c\u306b\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u53d7\u3051\u53d6\u308a\u307e\u3059\u3002",
+    step7Explain: "AI\u304c\u8fd4\u3057\u305f\u4fee\u6b63\u7248\u5bfe\u8a71\u3092\u4fdd\u5b58\u3057\u307e\u3059\u3002",
+    step3RevisedExplain: "1\u5f80\u5fa9\u3054\u3068\u306b\u97f3\u8aad\u3057\u307e\u3059\u3002AI\u306e\u30bb\u30ea\u30d5\u306f\u81ea\u52d5\u518d\u751f\u3055\u308c\u307e\u3059\u3002",
+    continueToSave: "AI\u3068\u306e\u4f1a\u8a71\u3092\u7d42\u3048\u3066\u6b21\u3078",
+    exchangeTitle: "\u5bfe\u8a71\u30ab\u30fc\u30c9",
+    replayAi: "AI\u306e\u30bb\u30ea\u30d5\u3092\u3082\u3046\u4e00\u5ea6\u805e\u304f",
+    readExchangeDone: "\u3053\u306e1\u5f80\u5fa9\u3092\u8aad\u3093\u3060"
   },
   en: {
     title: "Today Lesson",
@@ -189,7 +197,15 @@ const TX = {
     dialogueReadBody: "The app reads AI lines. You read only User lines aloud.",
     dialoguePass: "Pass",
     dialogueDone: "Complete This Pass",
-    finishDialogueRead: "Finish Revised Dialogue Reading"
+    finishDialogueRead: "Finish Revised Dialogue Reading",
+    stepExplainTitle: "Next Up",
+    step6Explain: "Talk with AI and receive one corrected dialogue at the end.",
+    step7Explain: "Save the corrected dialogue returned by AI.",
+    step3RevisedExplain: "Read one exchange per card. AI lines play automatically.",
+    continueToSave: "I Finished the AI Conversation",
+    exchangeTitle: "Dialogue Card",
+    replayAi: "Replay AI Line",
+    readExchangeDone: "I Read This Exchange"
   }
 } as const;
 
@@ -270,6 +286,24 @@ const parseDialogue = (text: string): DialogueLine[] =>
     })
     .filter((line): line is DialogueLine => !!line && !!line.text);
 
+const buildDialogueCards = (lines: DialogueLine[]) => {
+  const exchanges: { ai: string; user: string }[] = [];
+  for (let i = 0; i < lines.length; i += 2) {
+    const first = lines[i];
+    const second = lines[i + 1];
+    if (!first || !second || first.speaker !== "AI" || second.speaker !== "User") continue;
+    exchanges.push({ ai: first.text, user: second.text });
+  }
+
+  return Array.from({ length: 3 }, (_, passIndex) =>
+    exchanges.map((exchange, exchangeIndex) => ({
+      ...exchange,
+      pass: passIndex + 1,
+      exchange: exchangeIndex + 1
+    }))
+  ).flat();
+};
+
 const retellingRounds: RetellingRound[] = [
   { id: "3-1", mode: "3", seconds: 180, labelJa: "3分 1回目", labelEn: "3 min · Round 1", kind: "solo" },
   { id: "3-2", mode: "3", seconds: 180, labelJa: "3分 2回目", labelEn: "3 min · Round 2", kind: "solo" },
@@ -324,7 +358,7 @@ export default function TodayLessonPage() {
   const [reviewSentenceRepeatCount, setReviewSentenceRepeatCount] = useState(0);
   const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
   const [day3CorrectionText, setDay3CorrectionText] = useState("");
-  const [dialoguePassCount, setDialoguePassCount] = useState(0);
+  const [dialogueCardIndex, setDialogueCardIndex] = useState(0);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -379,7 +413,7 @@ export default function TodayLessonPage() {
     setReviewSentenceRepeatCount(0);
     setReviewAllRepeatCount(0);
     setDay3CorrectionText("");
-    setDialoguePassCount(0);
+    setDialogueCardIndex(0);
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -396,7 +430,7 @@ export default function TodayLessonPage() {
     setTransitionProgress(0);
     const id = setInterval(() => {
       setTransitionProgress((p) => {
-        const next = p + 2;
+        const next = p + 4;
         if (next >= 100) {
           clearInterval(id);
           setTransitioning(false);
@@ -404,7 +438,7 @@ export default function TodayLessonPage() {
         }
         return next;
       });
-    }, 100);
+    }, 120);
     return () => clearInterval(id);
   }, [transitioning]);
 
@@ -577,6 +611,8 @@ export default function TodayLessonPage() {
   const latestDay2Correction = latestRoleplay?.correctionText || "";
   const sentences = useMemo(() => splitSentences(readText), [readText]);
   const dialogueLines = useMemo(() => parseDialogue(latestDay3Correction), [latestDay3Correction]);
+  const dialogueCards = useMemo(() => buildDialogueCards(dialogueLines), [dialogueLines]);
+  const currentDialogueCard = dialogueCards[dialogueCardIndex];
   const reviewText = day2CorrectionText.trim() || latestDay2Correction.trim() || retellTranscript.trim();
   const reviewSentences = useMemo(() => splitSentences(reviewText), [reviewText]);
   const sentenceTarget = 10;
@@ -638,6 +674,12 @@ export default function TodayLessonPage() {
     }
     setReviewAllRepeatCount((v) => Math.min(reviewAllTarget, v + 1));
   };
+
+  useEffect(() => {
+    if (task.id !== "step3_revised") return;
+    if (!currentDialogueCard?.ai) return;
+    speak(currentDialogueCard.ai);
+  }, [currentDialogueCard?.ai, task.id]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
@@ -875,30 +917,46 @@ export default function TodayLessonPage() {
 
                 {task.id === "step3_revised" && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
                     <h3 className="text-base font-bold text-slate-900">{t.dialogueReadTitle}</h3>
-                    <p className="text-sm text-slate-800">{t.dialogueReadBody}</p>
-                    {!!dialogueLines.length ? (
+                    <p className="text-sm text-slate-800">{t.step3RevisedExplain}</p>
+                    {!!dialogueCards.length ? (
                       <>
-                        <div className="space-y-2">
-                          {dialogueLines.map((line, index) => (
-                            <div key={`${line.speaker}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{line.speaker}</p>
-                              <p className="mt-1 text-sm text-slate-900">{line.text}</p>
-                              {line.speaker === "AI" && (
-                                <button className="btn-secondary mt-3" onClick={() => speak(line.text)}>
-                                  {t.playSentence}
-                                </button>
-                              )}
+                        {currentDialogueCard ? (
+                          <>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+                              {t.dialoguePass}: {currentDialogueCard.pass}/3
                             </div>
-                          ))}
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
-                          {t.dialoguePass}: {dialoguePassCount}/3
-                        </div>
-                        <button className="btn-primary w-full" onClick={() => setDialoguePassCount((v) => Math.min(3, v + 1))} disabled={dialoguePassCount >= 3}>
-                          {t.dialogueDone}
-                        </button>
-                        {dialoguePassCount >= 3 && (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                {t.exchangeTitle} {currentDialogueCard.exchange}
+                              </p>
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI</p>
+                                <p className="text-sm text-slate-900">{currentDialogueCard.ai}</p>
+                                <button className="btn-secondary" onClick={() => speak(currentDialogueCard.ai)}>
+                                  {t.replayAi}
+                                </button>
+                              </div>
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">User</p>
+                                <p className="text-sm text-slate-900">{currentDialogueCard.user}</p>
+                              </div>
+                            </div>
+                            <button
+                              className="btn-primary w-full"
+                              onClick={() => setDialogueCardIndex((v) => Math.min(dialogueCards.length, v + 1))}
+                              disabled={dialogueCardIndex >= dialogueCards.length}
+                            >
+                              {t.readExchangeDone}
+                            </button>
+                          </>
+                        ) : (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-900">
+                            {t.dialoguePass}: 3/3
+                          </div>
+                        )}
+                        {dialogueCardIndex >= dialogueCards.length && (
                           <button className="btn-primary w-full" onClick={finishStep}>
                             {t.finishDialogueRead}
                           </button>
@@ -1088,28 +1146,43 @@ export default function TodayLessonPage() {
                 )}
 
                 {(task.id === "step6_roleplay" || task.id === "step6_advanced" || task.id === "step6_extended") && (
-                  <PromptCard
-                    title="Step6 Prompt"
-                    prompt={step6}
-                    language={state.language}
-                    onSavePaste={(text) => {
-                      saveRoleplay({
-                        id: crypto.randomUUID(),
-                        weekId: activeWeek.id,
-                        promptText: step6,
-                        transcriptText: text,
-                        correctionText: "",
-                        materialDialogueText: "",
-                        phrasesText: "",
-                        createdAt: new Date().toISOString()
-                      });
-                      finishStep();
-                    }}
-                  />
+                  <section className="glass rounded-xl2 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
+                    <p className="text-sm text-slate-800">{t.step6Explain}</p>
+                    <textarea className="input min-h-36 text-slate-900" value={step6} readOnly />
+                    <button
+                      className="btn-secondary w-full"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(step6);
+                      }}
+                    >
+                      {t.copyPrompt}
+                    </button>
+                    <button
+                      className="btn-primary w-full"
+                      onClick={() => {
+                        saveRoleplay({
+                          id: crypto.randomUUID(),
+                          weekId: activeWeek.id,
+                          promptText: step6,
+                          transcriptText: "",
+                          correctionText: "",
+                          materialDialogueText: "",
+                          phrasesText: "",
+                          createdAt: new Date().toISOString()
+                        });
+                        finishStep();
+                      }}
+                    >
+                      {t.continueToSave}
+                    </button>
+                  </section>
                 )}
 
                 {task.id === "step7_correct" && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
+                    <p className="text-sm text-slate-800">{t.step7Explain}</p>
                     <h3 className="text-base font-bold text-slate-900">{t.day3PasteTitle}</h3>
                     <textarea
                       className="input min-h-32 text-slate-900"
