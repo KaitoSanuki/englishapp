@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
-import { step2Prompt, step5Prompt, step6Prompt } from "@/lib/prompts";
-import { PromptCard } from "@/components/PromptCard";
+import { step2Prompt, step6Prompt } from "@/lib/prompts";
 import { Recorder } from "@/components/Recorder";
-import { Timer321 } from "@/components/Timer321";
 
 type FieldType = "text" | "textarea" | "select" | "yesno";
 type FieldDef = {
@@ -21,7 +19,6 @@ type TaskDef = { id: string; en: string; ja: string; fields: FieldDef[] };
 type DayWrap = { fromDay: number; nextDay: number | null };
 type Step2Phase = "prompt" | "paste";
 type Day2Phase = "warmup" | "retell" | "ai" | "review";
-type Day3Phase = "intro" | "cards";
 type IntroCopy = { titleJa: string; bodyJa: string; titleEn: string; bodyEn: string };
 type RetellingRound = {
   id: string;
@@ -244,14 +241,31 @@ const weekPlan: TaskDef[][] = [
     { id: "step3_revised", en: "Read revised text", ja: "\u4fee\u6b63\u7248\u3092\u97f3\u8aad", fields: [] }
   ],
   [
-    { id: "step3_review", en: "Review reading", ja: "\u5fa9\u7fd2\u97f3\u8aad", fields: [] },
-    { id: "step4_light", en: "Light 3-2-1", ja: "\u8efd\u30813-2-1", fields: [] }
+    { id: "day4_review_start", en: "Review reading", ja: "\u5fa9\u7fd2\u97f3\u8aad", fields: [] },
+    { id: "day4_321", en: "3-2-1 retelling", ja: "3-2-1 \u30ea\u30c6\u30ea\u30f3\u30b0", fields: [] },
+    { id: "day4_roleplay", en: "Roleplay", ja: "\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4", fields: [] },
+    { id: "day4_save", en: "Save corrected dialogue", ja: "\u4fee\u6b63\u7248\u3092\u4fdd\u5b58", fields: [] },
+    { id: "day4_review_end", en: "Review corrected dialogue", ja: "\u4fee\u6b63\u7248\u3092\u97f3\u8aad", fields: [] }
   ],
-  [{ id: "step6_advanced", en: "Advanced roleplay", ja: "\u5fdc\u7528\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4", fields: [{ key: "advancedFocus", en: "What variation to try?", ja: "\u3069\u3093\u306a\u5fdc\u7528\u3092\u8a66\u3059\uff1f", type: "text" }] }],
-  [{ id: "step6_extended", en: "Extended roleplay", ja: "\u62e1\u5f35\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4", fields: [{ key: "extendedMinutes", en: "How many minutes?", ja: "\u4f55\u5206\u3084\u308b\uff1f", type: "select", options: ["5", "8", "10"] }] }],
   [
-    { id: "step5_review", en: "Weekly correction review", ja: "\u9031\u6b21\u6dfb\u524a\u30ec\u30d3\u30e5\u30fc", fields: [{ key: "weekText", en: "Paste weekly speaking text", ja: "\u9031\u306e\u82f1\u8a9e\u3092\u8cbc\u308b", type: "textarea" }] },
-    { id: "record_compare", en: "Compare recordings", ja: "\u9332\u97f3\u6bd4\u8f03", fields: [] }
+    { id: "day5_roleplay_1", en: "Roleplay set 1", ja: "\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4 1\u30bb\u30c3\u30c8\u76ee", fields: [] },
+    { id: "day5_save_1", en: "Save corrected dialogue 1", ja: "\u4fee\u6b63\u7248\u4fdd\u5b58 1", fields: [] },
+    { id: "day5_review_1", en: "Review corrected dialogue 1", ja: "\u4fee\u6b63\u7248\u97f3\u8aad 1", fields: [] },
+    { id: "day5_roleplay_2", en: "Roleplay set 2", ja: "\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4 2\u30bb\u30c3\u30c8\u76ee", fields: [] },
+    { id: "day5_save_2", en: "Save corrected dialogue 2", ja: "\u4fee\u6b63\u7248\u4fdd\u5b58 2", fields: [] },
+    { id: "day5_review_2", en: "Review corrected dialogue 2", ja: "\u4fee\u6b63\u7248\u97f3\u8aad 2", fields: [] }
+  ],
+  [
+    { id: "day6_roleplay", en: "30min opinion roleplay", ja: "30\u5206\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4", fields: [] },
+    { id: "day6_save", en: "Save corrected dialogue", ja: "\u4fee\u6b63\u7248\u3092\u4fdd\u5b58", fields: [] },
+    { id: "day6_review", en: "Review corrected dialogue", ja: "\u4fee\u6b63\u7248\u3092\u97f3\u8aad", fields: [] }
+  ],
+  [
+    { id: "day7_speech", en: "1-minute speech record", ja: "1\u5206\u30b9\u30d4\u30fc\u30c1\u9332\u97f3", fields: [] },
+    { id: "day7_compare", en: "Compare recordings", ja: "\u9332\u97f3\u6bd4\u8f03", fields: [] },
+    { id: "day7_roleplay", en: "30min opinion roleplay", ja: "30\u5206\u30ed\u30fc\u30eb\u30d7\u30ec\u30a4", fields: [] },
+    { id: "day7_save", en: "Save corrected dialogue", ja: "\u4fee\u6b63\u7248\u3092\u4fdd\u5b58", fields: [] },
+    { id: "day7_review", en: "Review corrected dialogue", ja: "\u4fee\u6b63\u7248\u3092\u97f3\u8aad", fields: [] }
   ]
 ];
 
@@ -266,12 +280,25 @@ const taskHasAction = (taskId: string) =>
     "step6_roleplay",
     "step7_correct",
     "step3_revised",
-    "step3_review",
-    "step4_light",
-    "step6_advanced",
-    "step6_extended",
-    "step5_review",
-    "record_compare"
+    "day4_review_start",
+    "day4_321",
+    "day4_roleplay",
+    "day4_save",
+    "day4_review_end",
+    "day5_roleplay_1",
+    "day5_save_1",
+    "day5_review_1",
+    "day5_roleplay_2",
+    "day5_save_2",
+    "day5_review_2",
+    "day6_roleplay",
+    "day6_save",
+    "day6_review",
+    "day7_speech",
+    "day7_compare",
+    "day7_roleplay",
+    "day7_save",
+    "day7_review"
   ].includes(taskId);
 
 const splitSentences = (text: string) =>
@@ -375,41 +402,119 @@ const introCopyByTask: Record<string, IntroCopy> = {
     titleEn: "Roleplay Review Reading Next",
     bodyEn: "Read the corrected dialogue. AI lines autoplay and you read the User lines."
   },
-  step3_review: {
-    titleJa: "これから復習音読します",
-    bodyJa: "今週の台本をもう一度口に出して定着させます。",
-    titleEn: "Review Reading Next",
-    bodyEn: "Read the script again to reinforce the phrasing."
+  day4_review_start: {
+    titleJa: "これから3日目の復習音読です",
+    bodyJa: "3日目の修正版対話を使って、もう一度音読します。",
+    titleEn: "Day 4 Review Reading Next",
+    bodyEn: "Re-read the corrected dialogue from day 3."
   },
-  step4_light: {
-    titleJa: "これから軽い3-2-1です",
-    bodyJa: "短めに回して、言い直しの反射を維持します。",
-    titleEn: "Light 3-2-1 Next",
-    bodyEn: "Run a shorter retelling round to keep fluency active."
+  day4_321: {
+    titleJa: "これから3-2-1リテリングです",
+    bodyJa: "2日目と同じ形式で3分3回、2分2回、1分1回を実施します。",
+    titleEn: "Day 4 3-2-1 Next",
+    bodyEn: "Run 3-2-1 rounds in the same style as day 2."
   },
-  step6_advanced: {
-    titleJa: "これから応用会話です",
-    bodyJa: "これまでの台本を使いながら、少し応用した会話に広げます。",
-    titleEn: "Advanced AI Conversation Next",
-    bodyEn: "Expand the earlier scripts into a slightly more advanced conversation."
+  day4_roleplay: {
+    titleJa: "これからAIロールプレイです",
+    bodyJa: "追加のロールプレイを行い、最後に修正版対話を受け取ります。",
+    titleEn: "Additional AI Roleplay Next",
+    bodyEn: "Do another roleplay and get a corrected dialogue at the end."
   },
-  step6_extended: {
-    titleJa: "これから長めの会話です",
-    bodyJa: "5分以上の会話で、話を広げ続ける練習をします。",
-    titleEn: "Extended AI Conversation Next",
-    bodyEn: "Keep the conversation going for a longer stretch."
+  day4_save: {
+    titleJa: "これから修正版対話を保存します",
+    bodyJa: "AIが返した修正版対話を貼り付けて保存します。",
+    titleEn: "Save Corrected Dialogue Next",
+    bodyEn: "Paste and save the corrected dialogue from AI."
   },
-  step5_review: {
-    titleJa: "これから週の振り返りです",
-    bodyJa: "今週話した英語をまとめて見直し、修正版を整理します。",
-    titleEn: "Weekly Review Next",
-    bodyEn: "Review the English you used this week and organize corrections."
+  day4_review_end: {
+    titleJa: "これから修正版を音読します",
+    bodyJa: "保存した修正版対話を3日目と同じ方式で音読します。",
+    titleEn: "Review Corrected Dialogue Next",
+    bodyEn: "Read the corrected dialogue in the same style as day 3."
   },
-  record_compare: {
-    titleJa: "これから録音を比較します",
-    bodyJa: "最後に録音して、最初の自分と聞き比べます。",
-    titleEn: "Recording Comparison Next",
-    bodyEn: "Record again and compare with your first recording."
+  day5_roleplay_1: {
+    titleJa: "20分ロールプレイ 1セット目",
+    bodyJa: "20分の会話を行い、最後に修正版対話を受け取ります。",
+    titleEn: "20-min Roleplay Set 1",
+    bodyEn: "Run a 20-minute roleplay and get corrected dialogue."
+  },
+  day5_save_1: {
+    titleJa: "1セット目を保存します",
+    bodyJa: "1セット目の修正版対話を保存します。",
+    titleEn: "Save Set 1",
+    bodyEn: "Save corrected dialogue from set 1."
+  },
+  day5_review_1: {
+    titleJa: "1セット目を復習音読します",
+    bodyJa: "保存した修正版対話を対話形式で音読します。",
+    titleEn: "Review Set 1",
+    bodyEn: "Read corrected dialogue from set 1."
+  },
+  day5_roleplay_2: {
+    titleJa: "20分ロールプレイ 2セット目",
+    bodyJa: "もう一度20分ロールプレイを行います。",
+    titleEn: "20-min Roleplay Set 2",
+    bodyEn: "Run the second 20-minute roleplay."
+  },
+  day5_save_2: {
+    titleJa: "2セット目を保存します",
+    bodyJa: "2セット目の修正版対話を保存します。",
+    titleEn: "Save Set 2",
+    bodyEn: "Save corrected dialogue from set 2."
+  },
+  day5_review_2: {
+    titleJa: "2セット目を復習音読します",
+    bodyJa: "保存した修正版対話を対話形式で音読します。",
+    titleEn: "Review Set 2",
+    bodyEn: "Read corrected dialogue from set 2."
+  },
+  day6_roleplay: {
+    titleJa: "30分の意見交換ロールプレイです",
+    bodyJa: "AIの質問に答え、互いに意見と感想を言い合います。",
+    titleEn: "30-min Opinion Roleplay Next",
+    bodyEn: "Exchange opinions with AI in a 30-minute roleplay."
+  },
+  day6_save: {
+    titleJa: "修正版対話を保存します",
+    bodyJa: "AIが返した修正版対話を保存します。",
+    titleEn: "Save Corrected Dialogue",
+    bodyEn: "Save corrected dialogue from AI."
+  },
+  day6_review: {
+    titleJa: "修正版を復習音読します",
+    bodyJa: "対話形式で修正版を音読します。",
+    titleEn: "Review Corrected Dialogue",
+    bodyEn: "Read corrected dialogue in roleplay format."
+  },
+  day7_speech: {
+    titleJa: "1分スピーチを録音します",
+    bodyJa: "初日と同じテーマで1分スピーチして録音します。",
+    titleEn: "Record 1-min Speech",
+    bodyEn: "Record a 1-minute speech on the same topic as day 1."
+  },
+  day7_compare: {
+    titleJa: "録音を聞き比べます",
+    bodyJa: "初日の録音と今の録音を再生して比較します。",
+    titleEn: "Compare Recordings",
+    bodyEn: "Compare day 1 recording and today's recording."
+  },
+  day7_roleplay: {
+    titleJa: "30分の意見交換ロールプレイです",
+    bodyJa: "6日目と同じ形式で意見交換ロールプレイを行います。",
+    titleEn: "30-min Opinion Roleplay",
+    bodyEn: "Run the same opinion-exchange roleplay as day 6."
+  },
+  day7_save: {
+    titleJa: "修正版対話を保存します",
+    bodyJa: "AIが返した修正版対話を保存します。",
+    titleEn: "Save Corrected Dialogue",
+    bodyEn: "Save corrected dialogue from AI."
+  },
+  day7_review: {
+    titleJa: "修正版を復習音読します",
+    bodyJa: "対話形式で修正版を音読して締めます。",
+    titleEn: "Final Review Reading",
+    bodyEn: "Finish with roleplay-style reading."
   }
 };
 
@@ -439,12 +544,13 @@ export default function TodayLessonPage() {
   const [reviewSentenceRepeatCount, setReviewSentenceRepeatCount] = useState(0);
   const [reviewAllRepeatCount, setReviewAllRepeatCount] = useState(0);
   const [day3CorrectionText, setDay3CorrectionText] = useState("");
-  const [day3Phase, setDay3Phase] = useState<Day3Phase>("intro");
   const [dialogueCardIndex, setDialogueCardIndex] = useState(0);
   const [lastAutoplayKey, setLastAutoplayKey] = useState("");
   const [dialogueAutoplayReady, setDialogueAutoplayReady] = useState(false);
   const [speechPrimed, setSpeechPrimed] = useState(false);
   const [showTaskIntro, setShowTaskIntro] = useState(false);
+  const [day7SpeechRunning, setDay7SpeechRunning] = useState(false);
+  const [day7SpeechRemaining, setDay7SpeechRemaining] = useState(60);
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -478,6 +584,12 @@ export default function TodayLessonPage() {
   const latestRoleplay = [...state.roleplays]
     .filter((x) => x.weekId === activeWeek.id)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const baselineAudio = [...state.audioRecords]
+    .filter((x) => x.weekId === activeWeek.id && x.type === "baseline")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const latestReviewAudio = [...state.audioRecords]
+    .filter((x) => x.weekId === activeWeek.id && x.type === "review")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
   useEffect(() => {
     setDraft("");
@@ -499,12 +611,13 @@ export default function TodayLessonPage() {
     setReviewSentenceRepeatCount(0);
     setReviewAllRepeatCount(0);
     setDay3CorrectionText("");
-    setDay3Phase("intro");
     setDialogueCardIndex(0);
     setLastAutoplayKey("");
     setDialogueAutoplayReady(false);
     setSpeechPrimed(false);
     setShowTaskIntro(false);
+    setDay7SpeechRunning(false);
+    setDay7SpeechRemaining(60);
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -516,7 +629,7 @@ export default function TodayLessonPage() {
   }, [current, task.id]);
 
   useEffect(() => {
-    if (task.id !== "step4_321") return;
+    if (task.id !== "step4_321" && task.id !== "day4_321") return;
     if (day2Phase !== "retell") return;
     const currentRound = retellingRounds[retellRoundIndex];
     if (!currentRound) return;
@@ -556,6 +669,21 @@ export default function TodayLessonPage() {
     }, 1000);
     return () => clearInterval(id);
   }, [day2Phase, retellRoundIndex, retellRunning, task.id]);
+
+  useEffect(() => {
+    if (task.id !== "day7_speech" || !day7SpeechRunning) return;
+    const id = setInterval(() => {
+      setDay7SpeechRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          setDay7SpeechRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [day7SpeechRunning, task.id]);
 
   const save = (key: string, value: string) => setWizardAnswer(fkey(activeWeek.id, task.id, key), value);
   const say = (v: string) => t.chat.replace("{v}", v);
@@ -615,7 +743,7 @@ export default function TodayLessonPage() {
       setStep2Phase("prompt");
       return;
     }
-    if (task.id === "step4_321" && !current) {
+    if ((task.id === "step4_321" || task.id === "day4_321") && !current) {
       if (day2Phase === "review") {
         setDay2Phase("ai");
         return;
@@ -634,9 +762,13 @@ export default function TodayLessonPage() {
         return;
       }
     }
-    if (task.id === "step3_revised" && !current) {
-      if (day3Phase === "cards") {
-        setDay3Phase("intro");
+    if (dialogueReadTaskIds.includes(task.id) && !current) {
+      if (!showTaskIntro && dialogueCardIndex > 0) {
+        setDialogueCardIndex((v) => Math.max(0, v - 1));
+        return;
+      }
+      if (!showTaskIntro) {
+        setShowTaskIntro(true);
         return;
       }
     }
@@ -660,7 +792,7 @@ export default function TodayLessonPage() {
       setShowTaskIntro(false);
       return;
     }
-    if (task.id === "step4_321" && !current) {
+    if ((task.id === "step4_321" || task.id === "day4_321") && !current) {
       if (day2Phase === "warmup") {
         setDay2Phase("retell");
         return;
@@ -687,12 +819,16 @@ export default function TodayLessonPage() {
         return;
       }
     }
-    if (task.id === "step3_revised" && !current) {
-      if (day3Phase === "intro") {
-        setDay3Phase("cards");
+    if (dialogueReadTaskIds.includes(task.id) && !current) {
+      if (showTaskIntro) {
+        setShowTaskIntro(false);
         return;
       }
-      if (day3Phase === "cards" && dialogueCardIndex >= dialogueCards.length) {
+      if (dialogueCardIndex < dialogueCards.length) {
+        setDialogueCardIndex((v) => Math.min(dialogueCards.length, v + 1));
+        return;
+      }
+      if (dialogueCardIndex >= dialogueCards.length) {
         finishStep();
         return;
       }
@@ -719,16 +855,25 @@ export default function TodayLessonPage() {
   };
 
   const step2 = step2Prompt(effectiveCefr, values.topic || activeWeek.topicTitle, state.language);
+  const roleplayTaskIds = [
+    "step6_roleplay",
+    "day4_roleplay",
+    "day5_roleplay_1",
+    "day5_roleplay_2",
+    "day6_roleplay",
+    "day7_roleplay"
+  ];
+  const isRoleplayTask = roleplayTaskIds.includes(task.id);
+  const roleplayDuration =
+    task.id === "day5_roleplay_1" || task.id === "day5_roleplay_2" ? 20 : task.id === "day6_roleplay" || task.id === "day7_roleplay" ? 30 : 5;
+  const roleplayGoal = task.id === "day6_roleplay" || task.id === "day7_roleplay"
+    ? "Discuss opinions: AI asks a question, User answers, AI shares an opinion, and both exchange reactions."
+    : t.day3Goal;
   const day3ReferenceScripts = [latestScript?.enScript || "", latestRoleplay?.correctionText || ""].filter(Boolean);
-  const step6 = step6Prompt(
-    effectiveCefr,
-    activeWeek.topicTitle,
-    t.day3Goal,
-    task.id === "step6_extended" ? Number(values.extendedMinutes || 5) : task.id === "step6_advanced" ? 5 : 5,
-    day3ReferenceScripts,
-    state.language
-  );
-  const step5 = step5Prompt(effectiveCefr, values.weekText || "", state.language);
+  const step6 = step6Prompt(effectiveCefr, activeWeek.topicTitle, roleplayGoal, roleplayDuration, day3ReferenceScripts, state.language);
+  const dialogueReadTaskIds = ["step3_revised", "day4_review_start", "day4_review_end", "day5_review_1", "day5_review_2", "day6_review", "day7_review"];
+  const saveDialogueTaskIds = ["step7_correct", "day4_save", "day5_save_1", "day5_save_2", "day6_save", "day7_save"];
+  const simpleReadTaskIds = ["step3_read"];
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
   const hideProgress = !!dayWrap || startCardDay !== null;
   const latestDay3Correction = day3CorrectionText.trim() || latestRoleplay?.correctionText || "";
@@ -842,8 +987,8 @@ export default function TodayLessonPage() {
   };
 
   useEffect(() => {
-    if (task.id !== "step3_revised") return;
-    if (day3Phase !== "cards") return;
+    if (!dialogueReadTaskIds.includes(task.id)) return;
+    if (showTaskIntro) return;
     setDialogueAutoplayReady(false);
     if (transitioning || !!dayWrap || startCardDay !== null) return;
     if (!currentDialogueCard?.ai) return;
@@ -853,11 +998,11 @@ export default function TodayLessonPage() {
     return () => {
       window.clearTimeout(id);
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, day3Phase, dayWrap, startCardDay, task.id, transitioning]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, showTaskIntro, startCardDay, task.id, transitioning, dialogueReadTaskIds]);
 
   useEffect(() => {
-    if (task.id !== "step3_revised") return;
-    if (day3Phase !== "cards") return;
+    if (!dialogueReadTaskIds.includes(task.id)) return;
+    if (showTaskIntro) return;
     if (!dialogueAutoplayReady) return;
     if (!currentDialogueCard?.ai) return;
     if (currentDialogueKey === lastAutoplayKey) return;
@@ -868,7 +1013,7 @@ export default function TodayLessonPage() {
     return () => {
       window.clearTimeout(id);
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, day3Phase, dialogueAutoplayReady, lastAutoplayKey, task.id]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, dialogueAutoplayReady, lastAutoplayKey, showTaskIntro, task.id, dialogueReadTaskIds]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
@@ -914,9 +1059,9 @@ export default function TodayLessonPage() {
       ? false
       : !current && !!introCopyByTask[task.id] && !showTaskIntro
         ? true
-      : task.id === "step3_revised" && !current
-        ? day3Phase === "cards" || hasAnyCompleted || !!lastAnswered
-      : task.id === "step4_321" && !current
+      : dialogueReadTaskIds.includes(task.id) && !current
+        ? !showTaskIntro || dialogueCardIndex > 0 || hasAnyCompleted || !!lastAnswered
+      : (task.id === "step4_321" || task.id === "day4_321") && !current
         ? day2Phase !== "warmup" || retellRoundIndex > 0 || hasAnyCompleted || !!lastAnswered
         : task.id === "step2_script" && !current && step2Phase === "paste"
           ? true
@@ -1072,7 +1217,7 @@ export default function TodayLessonPage() {
                   )
                 )}
 
-                {(task.id === "step3_read" || task.id === "step3_review") && (
+                {simpleReadTaskIds.includes(task.id) && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
                     <h3 className="text-base font-bold text-slate-900">{t.scriptPreview}</h3>
                     {!!readText.trim() ? (
@@ -1122,19 +1267,12 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {task.id === "step3_revised" && (
+                {dialogueReadTaskIds.includes(task.id) && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
                     <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
                     <h3 className="text-base font-bold text-slate-900">{t.dialogueReadTitle}</h3>
                     <p className="text-sm text-slate-800">{t.step3RevisedExplain}</p>
-                    {day3Phase === "intro" ? (
-                      <div className="space-y-3">
-                        <p className="text-sm text-slate-800">{t.step3RevisedIntro}</p>
-                        <button className="btn-primary w-full" onClick={() => setDay3Phase("cards")}>
-                          {t.beginDialogueRead}
-                        </button>
-                      </div>
-                    ) : !!dialogueCards.length ? (
+                    {!!dialogueCards.length ? (
                       <>
                         {currentDialogueCard ? (
                           <>
@@ -1185,7 +1323,7 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {(task.id === "record_baseline" || task.id === "record_compare") && (
+                {task.id === "record_baseline" && (
                   <section className="space-y-3">
                     <section className="glass rounded-xl2 p-4 space-y-2">
                       <h3 className="text-base font-bold text-slate-900">{t.scriptPreview}</h3>
@@ -1208,7 +1346,7 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {task.id === "step4_321" && (
+                {(task.id === "step4_321" || task.id === "day4_321") && (
                   <section className="glass rounded-xl2 p-4 space-y-4">
                     <div className="space-y-2">
                       <h3 className="text-base font-bold text-slate-900">{t.retellGuideTitle}</h3>
@@ -1352,17 +1490,54 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {task.id === "step4_light" && (
-                  <Timer321
-                    language={state.language}
-                    onSave={(mode, sec, rating, notes) => {
-                      saveRetelling({ id: crypto.randomUUID(), weekId: activeWeek.id, mode, actualTimeSec: sec, rating, notes, createdAt: new Date().toISOString() });
-                      finishStep();
-                    }}
-                  />
+                {task.id === "day7_speech" && (
+                  <section className="glass rounded-xl2 p-4 space-y-4">
+                    <h3 className="text-base font-bold text-slate-900">{ja ? "1分スピーチ録音" : "1-min Speech Recording"}</h3>
+                    <article className="input whitespace-pre-wrap text-slate-900">{latestScript?.enScript || t.noScript}</article>
+                    <p className="text-4xl font-black tabular-nums text-slate-900">{formatTimer(day7SpeechRemaining)}</p>
+                    <div className="flex gap-2">
+                      <button className="btn-primary flex-1" onClick={() => setDay7SpeechRunning(true)} disabled={day7SpeechRunning || day7SpeechRemaining === 0}>
+                        {t.retellStart}
+                      </button>
+                      <button className="btn-secondary flex-1" onClick={() => setDay7SpeechRunning(false)} disabled={!day7SpeechRunning}>
+                        {t.retellStop}
+                      </button>
+                    </div>
+                    <Recorder
+                      language={state.language}
+                      onSave={(blobUrl) => {
+                        saveAudio({
+                          id: crypto.randomUUID(),
+                          weekId: activeWeek.id,
+                          type: "review",
+                          blobUrl,
+                          memo: "day7_speech",
+                          createdAt: new Date().toISOString()
+                        });
+                        finishStep();
+                      }}
+                    />
+                  </section>
                 )}
 
-                {(task.id === "step6_roleplay" || task.id === "step6_advanced" || task.id === "step6_extended") && (
+                {task.id === "day7_compare" && (
+                  <section className="glass rounded-xl2 p-4 space-y-3">
+                    <h3 className="text-base font-bold text-slate-900">{ja ? "録音比較" : "Recording Comparison"}</h3>
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-slate-900">{ja ? "初日の録音" : "Day 1 Baseline"}</p>
+                      {baselineAudio ? <audio controls src={baselineAudio.blobUrl} className="w-full" /> : <p className="text-sm text-slate-700">{t.noScript}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-slate-900">{ja ? "今日の録音" : "Today Recording"}</p>
+                      {latestReviewAudio ? <audio controls src={latestReviewAudio.blobUrl} className="w-full" /> : <p className="text-sm text-slate-700">{t.noScript}</p>}
+                    </div>
+                    <button className="btn-primary w-full" onClick={finishStep}>
+                      {ja ? "比較完了" : "Finish Comparison"}
+                    </button>
+                  </section>
+                )}
+
+                {isRoleplayTask && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
                     <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
                     <p className="text-sm text-slate-800">{t.step6Explain}</p>
@@ -1396,7 +1571,7 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {task.id === "step7_correct" && (
+                {saveDialogueTaskIds.includes(task.id) && (
                   <section className="glass rounded-xl2 p-4 space-y-3">
                     <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
                     <p className="text-sm text-slate-800">{t.step7Explain}</p>
@@ -1431,7 +1606,6 @@ export default function TodayLessonPage() {
                   </section>
                 )}
 
-                {task.id === "step5_review" && <PromptCard title="Step5 Prompt" prompt={step5} language={state.language} onSavePaste={() => finishStep()} />}
               </div>
             )}
           </div>
