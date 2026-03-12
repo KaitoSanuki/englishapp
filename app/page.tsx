@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
 import { step2Prompt, step6Prompt } from "@/lib/prompts";
@@ -56,8 +57,9 @@ const TX = {
     nextDayStart: "\u6b21\u306f{d}\u65e5\u76ee\u30b9\u30bf\u30fc\u30c8\uff01",
     startNextDay: "\u6b21\u306e\u30ec\u30c3\u30b9\u30f3\u3092\u59cb\u3081\u308b",
     weekDoneTitle: "\u4eca\u9031\u306e\u30ec\u30c3\u30b9\u30f3\u5b8c\u4e86\uff01",
-    weekDoneBody: "\u9031\u6b21\u9032\u6357\u304b\u3089\u632f\u308a\u8fd4\u308a\u307e\u3057\u3087\u3046\u3002",
+    weekDoneBody: "1\u30c6\u30fc\u30de\u3084\u308a\u5207\u308a\u307e\u3057\u305f\uff01\u6b21\u306e\u30c6\u30fc\u30de\u3092\u59cb\u3081\u307e\u3057\u3087\u3046\u3002",
     openProgress: "\u9031\u9593\u9032\u6357\u3092\u898b\u308b",
+    startNewTheme: "\u65b0\u3057\u3044\u30c6\u30fc\u30de\u3067\u59cb\u3081\u308b",
     chat: "\u306a\u308b\u307b\u3069\u3001\u300c{v}\u300d\u3067\u3059\u306d\uff01",
     finishRead: "\u97f3\u8aad\u5b8c\u4e86",
     generatedPrompt: "\u30d7\u30ed\u30f3\u30d7\u30c8\u304c\u3067\u304d\u307e\u3057\u305f",
@@ -144,8 +146,9 @@ const TX = {
     nextDayStart: "Day {d} starts now!",
     startNextDay: "Start Next Lesson",
     weekDoneTitle: "Week lesson complete!",
-    weekDoneBody: "Check your weekly progress and review.",
+    weekDoneBody: "You completed one full theme. Start a new theme now.",
     openProgress: "Open Weekly Progress",
+    startNewTheme: "Start New Theme",
     chat: 'Got it: "{v}"',
     finishRead: "Finish Reading",
     generatedPrompt: "Prompt is ready",
@@ -519,9 +522,12 @@ const introCopyByTask: Record<string, IntroCopy> = {
 };
 
 export default function TodayLessonPage() {
-  const { state, activeWeek, saveTaskRun, saveWeek, setWizardAnswer, undoLastCompletedTask, saveScript, saveRoleplay, saveRetelling, saveAudio } = useAppState();
+  const { state, activeWeek, saveTaskRun, saveWeek, setWizardAnswer, undoLastCompletedTask, saveScript, saveRoleplay, saveRetelling, saveAudio, createNextWeek } =
+    useAppState();
   const ja = state.language === "ja";
   const t = ja ? TX.ja : TX.en;
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [draft, setDraft] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -551,6 +557,15 @@ export default function TodayLessonPage() {
   const [showTaskIntro, setShowTaskIntro] = useState(false);
   const [day7SpeechRunning, setDay7SpeechRunning] = useState(false);
   const [day7SpeechRemaining, setDay7SpeechRemaining] = useState(60);
+  const [day7Recording, setDay7Recording] = useState(false);
+  const [day7PreviewUrl, setDay7PreviewUrl] = useState("");
+  const [day7RecordError, setDay7RecordError] = useState("");
+  const day7MediaRef = useRef<MediaRecorder | null>(null);
+  const day7ChunksRef = useRef<Blob[]>([]);
+  const day7MimeRef = useRef("");
+  const [autoReadKey, setAutoReadKey] = useState("");
+  const [autoReviewKey, setAutoReviewKey] = useState("");
+  const [autoWarmupKey, setAutoWarmupKey] = useState("");
 
   const completedByDay = useMemo(() => {
     const map = weekPlan.map(() => new Set<string>());
@@ -562,11 +577,15 @@ export default function TodayLessonPage() {
 
   const dayIdx = completedByDay.findIndex((set, i) => set.size < weekPlan[i].length);
   const flowDay = dayIdx === -1 ? 6 : dayIdx;
-  const frozenDay = dayWrap?.fromDay ?? flowDay;
+  const replayDayRaw = Number(searchParams.get("replayDay"));
+  const replayTaskId = searchParams.get("replayTask") ?? "";
+  const hasReplayDay = Number.isInteger(replayDayRaw) && replayDayRaw >= 0 && replayDayRaw < weekPlan.length;
+  const replayMode = hasReplayDay && !!replayTaskId && weekPlan[replayDayRaw].some((x) => x.id === replayTaskId);
+  const frozenDay = replayMode ? replayDayRaw : dayWrap?.fromDay ?? flowDay;
   const dayTasks = weekPlan[frozenDay];
   const completedIds = completedByDay[frozenDay];
   const pendingIndex = dayTasks.findIndex((x) => !completedIds.has(x.id));
-  const task = pendingIndex === -1 ? dayTasks[dayTasks.length - 1] : dayTasks[pendingIndex];
+  const task = replayMode ? dayTasks.find((x) => x.id === replayTaskId) ?? dayTasks[0] : pendingIndex === -1 ? dayTasks[dayTasks.length - 1] : dayTasks[pendingIndex];
   const doneCount = dayTasks.filter((x) => completedIds.has(x.id)).length;
   const hasAnyCompleted = state.taskRuns.some((x) => x.weekId === activeWeek.id && x.completed);
 
@@ -618,6 +637,12 @@ export default function TodayLessonPage() {
     setShowTaskIntro(false);
     setDay7SpeechRunning(false);
     setDay7SpeechRemaining(60);
+    setDay7Recording(false);
+    setDay7PreviewUrl("");
+    setDay7RecordError("");
+    setAutoReadKey("");
+    setAutoReviewKey("");
+    setAutoWarmupKey("");
   }, [frozenDay, task.id]);
 
   useEffect(() => {
@@ -654,7 +679,8 @@ export default function TodayLessonPage() {
   }, [transitioning]);
 
   useEffect(() => {
-    if (task.id !== "step4_321" || day2Phase !== "retell" || !retellRunning) return;
+    if (task.id !== "step4_321" && task.id !== "day4_321") return;
+    if (day2Phase !== "retell" || !retellRunning) return;
     const currentRound = retellingRounds[retellRoundIndex];
     if (!currentRound) return;
     const id = setInterval(() => {
@@ -677,13 +703,18 @@ export default function TodayLessonPage() {
         if (prev <= 1) {
           clearInterval(id);
           setDay7SpeechRunning(false);
+          if (day7Recording) {
+            day7MediaRef.current?.stop();
+            day7MediaRef.current?.stream.getTracks().forEach((t) => t.stop());
+            setDay7Recording(false);
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [day7SpeechRunning, task.id]);
+  }, [day7Recording, day7SpeechRunning, task.id]);
 
   const save = (key: string, value: string) => setWizardAnswer(fkey(activeWeek.id, task.id, key), value);
   const say = (v: string) => t.chat.replace("{v}", v);
@@ -705,6 +736,10 @@ export default function TodayLessonPage() {
       startedAt: new Date().toISOString(),
       endedAt: new Date().toISOString()
     });
+    if (replayMode) {
+      router.push("/practice");
+      return;
+    }
     setFeedback("");
     if (isLastTaskOfDay) {
       setDayWrap({ fromDay: frozenDay, nextDay: isLastDay ? null : frozenDay + 1 });
@@ -735,6 +770,10 @@ export default function TodayLessonPage() {
   const goBack = () => {
     primeSpeech();
     stopSpeech();
+    if (replayMode && !current) {
+      router.push("/practice");
+      return;
+    }
     if (!current && !!introCopyByTask[task.id] && !showTaskIntro) {
       setShowTaskIntro(true);
       return;
@@ -854,6 +893,14 @@ export default function TodayLessonPage() {
     setStartCardDay(null);
   };
 
+  const startNewTheme = () => {
+    primeSpeech();
+    stopSpeech();
+    createNextWeek();
+    setDayWrap(null);
+    setStartCardDay(null);
+  };
+
   const step2 = step2Prompt(effectiveCefr, values.topic || activeWeek.topicTitle, state.language);
   const roleplayTaskIds = [
     "step6_roleplay",
@@ -958,6 +1005,124 @@ export default function TodayLessonPage() {
     window.speechSynthesis.speak(u);
   };
 
+  useEffect(() => {
+    if (transitioning || !!dayWrap || startCardDay !== null || showTaskIntro || current) return;
+    if (!simpleReadTaskIds.includes(task.id)) return;
+    if (!sentences.length || sentenceStageDone) return;
+    const key = `${task.id}:sentence:${sentenceIndex}:${sentenceRepeatCount}`;
+    if (autoReadKey === key) return;
+    const text = sentences[sentenceIndex];
+    if (!text) return;
+    const id = window.setTimeout(() => {
+      setAutoReadKey(key);
+      speak(text);
+    }, 200);
+    return () => window.clearTimeout(id);
+  }, [
+    autoReadKey,
+    current,
+    dayWrap,
+    sentenceIndex,
+    sentenceRepeatCount,
+    sentenceStageDone,
+    sentences,
+    showTaskIntro,
+    simpleReadTaskIds,
+    startCardDay,
+    task.id,
+    transitioning
+  ]);
+
+  useEffect(() => {
+    if (transitioning || !!dayWrap || startCardDay !== null || showTaskIntro || current) return;
+    if (!(task.id === "step4_321" || task.id === "day4_321")) return;
+    if (day2Phase !== "warmup" || !retellSourceText.trim()) return;
+    const key = `${task.id}:warmup:${retellSourceText.length}`;
+    if (autoWarmupKey === key) return;
+    const id = window.setTimeout(() => {
+      setAutoWarmupKey(key);
+      speak(retellSourceText);
+    }, 250);
+    return () => window.clearTimeout(id);
+  }, [autoWarmupKey, current, day2Phase, dayWrap, retellSourceText, showTaskIntro, startCardDay, task.id, transitioning]);
+
+  useEffect(() => {
+    if (transitioning || !!dayWrap || startCardDay !== null || showTaskIntro || current) return;
+    if (!(task.id === "step4_321" || task.id === "day4_321")) return;
+    if (day2Phase !== "review" || !reviewSentences.length || reviewSentenceStageDone) return;
+    const key = `${task.id}:review:${reviewSentenceIndex}:${reviewSentenceRepeatCount}`;
+    if (autoReviewKey === key) return;
+    const text = reviewSentences[reviewSentenceIndex];
+    if (!text) return;
+    const id = window.setTimeout(() => {
+      setAutoReviewKey(key);
+      speak(text);
+    }, 200);
+    return () => window.clearTimeout(id);
+  }, [
+    autoReviewKey,
+    current,
+    day2Phase,
+    dayWrap,
+    reviewSentenceIndex,
+    reviewSentenceRepeatCount,
+    reviewSentenceStageDone,
+    reviewSentences,
+    showTaskIntro,
+    startCardDay,
+    task.id,
+    transitioning
+  ]);
+
+  const pickRecorderMime = () => {
+    if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return "";
+    const candidates = ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
+    return candidates.find((v) => MediaRecorder.isTypeSupported(v)) ?? "";
+  };
+
+  const startDay7SpeechRecording = async () => {
+    setDay7RecordError("");
+    if (day7Recording || day7SpeechRunning) return;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        setDay7RecordError(ja ? "この端末は録音に対応していません" : "Recording is not supported on this device");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = pickRecorderMime();
+      day7MimeRef.current = mimeType;
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      day7ChunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) day7ChunksRef.current.push(e.data);
+      };
+      mr.onerror = () => setDay7RecordError(ja ? "録音中にエラーが発生しました" : "An error occurred while recording");
+      mr.onstop = () => {
+        const blobType = mr.mimeType || day7MimeRef.current || "audio/webm";
+        const blob = new Blob(day7ChunksRef.current, { type: blobType });
+        const preview = URL.createObjectURL(blob);
+        setDay7PreviewUrl(preview);
+        setDay7Recording(false);
+      };
+      mr.start();
+      day7MediaRef.current = mr;
+      setDay7Recording(true);
+      setDay7SpeechRunning(true);
+      setDay7SpeechRemaining(60);
+    } catch {
+      setDay7RecordError(ja ? "マイクの許可が必要です" : "Microphone permission is required");
+      setDay7Recording(false);
+      setDay7SpeechRunning(false);
+    }
+  };
+
+  const stopDay7SpeechRecording = () => {
+    day7MediaRef.current?.stop();
+    day7MediaRef.current?.stream.getTracks().forEach((t) => t.stop());
+    setDay7Recording(false);
+    setDay7SpeechRunning(false);
+  };
+
   const countReading = () => {
     if (!sentenceStageDone) {
       const nextCount = sentenceRepeatCount + 1;
@@ -1057,6 +1222,8 @@ export default function TodayLessonPage() {
     !!dayWrap ||
     startCardDay !== null
       ? false
+      : replayMode && !current
+        ? true
       : !current && !!introCopyByTask[task.id] && !showTaskIntro
         ? true
       : dialogueReadTaskIds.includes(task.id) && !current
@@ -1073,6 +1240,7 @@ export default function TodayLessonPage() {
         <p className="text-xs text-slate-700">{t.title}</p>
         <h1 className="text-2xl font-black">{ja ? `${displayDay + 1}${t.day}` : `${t.day} ${displayDay + 1}`}</h1>
         <p className="text-sm text-slate-800">{t.oneByOne}</p>
+        {replayMode && <p className="mt-1 text-xs font-semibold text-accent">{ja ? "やり直しモード" : "Redo Mode"}</p>}
       </section>
 
       <section className="glass rounded-xl2 p-5 flex-1 flex flex-col justify-between overflow-auto">
@@ -1102,9 +1270,15 @@ export default function TodayLessonPage() {
               <div className="space-y-3">
                 <p className="font-semibold text-slate-900">{dayWrap.nextDay === null ? t.weekDoneTitle : t.dayDoneTitle}</p>
                 <p className="text-sm text-slate-800">{dayWrap.nextDay === null ? t.weekDoneBody : t.dayDoneBody}</p>
-                <button className="btn-primary w-full" onClick={closeDay}>
-                  {t.finishDay}
-                </button>
+                {dayWrap.nextDay === null ? (
+                  <button className="btn-primary w-full" onClick={startNewTheme}>
+                    {t.startNewTheme}
+                  </button>
+                ) : (
+                  <button className="btn-primary w-full" onClick={closeDay}>
+                    {t.finishDay}
+                  </button>
+                )}
               </div>
             ) : startCardDay !== null ? (
               <div className="space-y-3">
@@ -1493,30 +1667,38 @@ export default function TodayLessonPage() {
                 {task.id === "day7_speech" && (
                   <section className="glass rounded-xl2 p-4 space-y-4">
                     <h3 className="text-base font-bold text-slate-900">{ja ? "1分スピーチ録音" : "1-min Speech Recording"}</h3>
-                    <article className="input whitespace-pre-wrap text-slate-900">{latestScript?.enScript || t.noScript}</article>
                     <p className="text-4xl font-black tabular-nums text-slate-900">{formatTimer(day7SpeechRemaining)}</p>
                     <div className="flex gap-2">
-                      <button className="btn-primary flex-1" onClick={() => setDay7SpeechRunning(true)} disabled={day7SpeechRunning || day7SpeechRemaining === 0}>
-                        {t.retellStart}
+                      <button className="btn-primary flex-1" onClick={startDay7SpeechRecording} disabled={day7SpeechRunning || day7Recording}>
+                        {ja ? "録音とタイマーを開始" : "Start Recording + Timer"}
                       </button>
-                      <button className="btn-secondary flex-1" onClick={() => setDay7SpeechRunning(false)} disabled={!day7SpeechRunning}>
-                        {t.retellStop}
+                      <button className="btn-secondary flex-1" onClick={stopDay7SpeechRecording} disabled={!day7Recording}>
+                        {ja ? "停止" : "Stop"}
                       </button>
                     </div>
-                    <Recorder
-                      language={state.language}
-                      onSave={(blobUrl) => {
+                    {!!day7RecordError && <p className="text-sm text-rose-600">{day7RecordError}</p>}
+                    {day7PreviewUrl && (
+                      <>
+                        <audio src={day7PreviewUrl} controls className="w-full" />
+                        <button
+                          className="btn-primary w-full"
+                          onClick={() => {
                         saveAudio({
                           id: crypto.randomUUID(),
                           weekId: activeWeek.id,
                           type: "review",
-                          blobUrl,
+                              blobUrl: day7PreviewUrl,
                           memo: "day7_speech",
                           createdAt: new Date().toISOString()
                         });
                         finishStep();
                       }}
-                    />
+                          disabled={!day7PreviewUrl}
+                        >
+                          {ja ? "録音を保存して次へ" : "Save Recording and Continue"}
+                        </button>
+                      </>
+                    )}
                   </section>
                 )}
 

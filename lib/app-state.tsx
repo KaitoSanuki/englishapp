@@ -21,7 +21,9 @@ const defaultWeek: WeekPlan = {
   goal: "Talk about work and hobbies for 3 turns",
   cefr: "A2",
   descriptionJp: "Talk about name, work, and hobbies in 60 seconds",
-  streak: 1
+  streak: 1,
+  isFavorite: false,
+  createdAt: new Date().toISOString()
 };
 
 const defaultState: AppState = {
@@ -56,6 +58,8 @@ type AppStateContextType = {
   saveRetelling: (item: RetellingItem) => void;
   saveAudio: (item: AudioRecordItem) => void;
   setReviewMemo: (memo: string) => void;
+  createNextWeek: () => void;
+  toggleWeekFavorite: (weekId: string) => void;
 };
 
 const AppStateContext = createContext<AppStateContextType | null>(null);
@@ -63,12 +67,41 @@ const AppStateContext = createContext<AppStateContextType | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(defaultState);
 
+  const pruneStateByWeeks = (next: AppState) => {
+    const favorites = next.weeks.filter((w) => w.isFavorite).sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    const favored = favorites.slice(0, 9);
+    const favoredIds = new Set(favored.map((w) => w.id));
+    const nonFav = next.weeks
+      .filter((w) => !favoredIds.has(w.id))
+      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    const keptNonFav = nonFav.slice(0, 10);
+    const keptWeeks = [...favored, ...keptNonFav].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    const keepIds = new Set(keptWeeks.map((w) => w.id));
+    const cleanAnswers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(next.wizardAnswers)) {
+      const weekId = k.split(":")[0];
+      if (keepIds.has(weekId)) cleanAnswers[k] = v;
+    }
+    const nextActiveWeekId = next.activeWeekId && keepIds.has(next.activeWeekId) ? next.activeWeekId : keptWeeks[0]?.id;
+    return {
+      ...next,
+      activeWeekId: nextActiveWeekId,
+      weeks: keptWeeks.map((w) => ({ ...w, isFavorite: favoredIds.has(w.id) })),
+      wizardAnswers: cleanAnswers,
+      taskRuns: next.taskRuns.filter((x) => keepIds.has(x.weekId)),
+      scripts: next.scripts.filter((x) => keepIds.has(x.weekId)),
+      roleplays: next.roleplays.filter((x) => keepIds.has(x.weekId)),
+      retellings: next.retellings.filter((x) => keepIds.has(x.weekId)),
+      audioRecords: next.audioRecords.filter((x) => keepIds.has(x.weekId))
+    };
+  };
+
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<AppState>;
-        setState({
+        const hydrated = {
           ...defaultState,
           ...parsed,
           prefs: {
@@ -76,8 +109,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...(parsed.prefs ?? {})
           },
           wizardAnswers: parsed.wizardAnswers ?? {},
-          language: parsed.language === "ja" ? "ja" : "en"
-        });
+          language: (parsed.language === "ja" ? "ja" : "en") as Language,
+          weeks: (parsed.weeks ?? defaultState.weeks).map((w) => ({
+            ...w,
+            isFavorite: !!w.isFavorite,
+            createdAt: w.createdAt ?? w.startDate
+          }))
+        };
+        setState(pruneStateByWeeks(hydrated));
       } catch {
         setState(defaultState);
       }
@@ -135,11 +174,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveWeek: (week) => {
       setState((prev) => {
         const exists = prev.weeks.some((w) => w.id === week.id);
-        return {
+        const next = {
           ...prev,
-          weeks: exists ? prev.weeks.map((w) => (w.id === week.id ? week : w)) : [week, ...prev.weeks],
+          weeks: exists
+            ? prev.weeks.map((w) => (w.id === week.id ? { ...week, isFavorite: w.isFavorite ?? false, createdAt: w.createdAt ?? week.startDate } : w))
+            : [{ ...week, isFavorite: false, createdAt: week.createdAt ?? new Date().toISOString() }, ...prev.weeks],
           activeWeekId: week.id
         };
+        return pruneStateByWeeks(next);
       });
     },
     setActiveWeek: (weekId) => setState((prev) => ({ ...prev, activeWeekId: weekId })),
@@ -148,7 +190,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveRoleplay: (item) => setState((prev) => ({ ...prev, roleplays: [item, ...prev.roleplays] })),
     saveRetelling: (item) => setState((prev) => ({ ...prev, retellings: [item, ...prev.retellings] })),
     saveAudio: (item) => setState((prev) => ({ ...prev, audioRecords: [item, ...prev.audioRecords] })),
-    setReviewMemo: (memo) => setState((prev) => ({ ...prev, reviewMemo: memo }))
+    setReviewMemo: (memo) => setState((prev) => ({ ...prev, reviewMemo: memo })),
+    createNextWeek: () =>
+      setState((prev) => {
+        const nextWeek: WeekPlan = {
+          id: crypto.randomUUID(),
+          startDate: monday(),
+          topicTitle: "New Topic",
+          goal: "Talk for 3 turns",
+          cefr: prev.prefs.defaultCefr,
+          descriptionJp: "",
+          streak: 1,
+          isFavorite: false,
+          createdAt: new Date().toISOString()
+        };
+        return pruneStateByWeeks({
+          ...prev,
+          weeks: [nextWeek, ...prev.weeks],
+          activeWeekId: nextWeek.id
+        });
+      }),
+    toggleWeekFavorite: (weekId) =>
+      setState((prev) => {
+        const target = prev.weeks.find((w) => w.id === weekId);
+        if (!target) return prev;
+        if (!target.isFavorite) {
+          const favoriteCount = prev.weeks.filter((w) => w.isFavorite).length;
+          if (favoriteCount >= 9) return prev;
+        }
+        const next = {
+          ...prev,
+          weeks: prev.weeks.map((w) => (w.id === weekId ? { ...w, isFavorite: !w.isFavorite } : w))
+        };
+        return pruneStateByWeeks(next);
+      })
   };
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

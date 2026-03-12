@@ -13,6 +13,8 @@ export type WeekPlan = {
   cefr: CEFR;
   descriptionJp?: string;
   streak: number;
+  isFavorite?: boolean;
+  createdAt?: string;
 };
 
 export type TaskRun = {

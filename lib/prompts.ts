@@ -20,6 +20,7 @@ export const step2Prompt = (cefr: CEFR, topic: string, lang: "en" | "ja") =>
     "Final output format:",
     "[Speech Script]",
     "- up to 1 minute",
+    "- at least 150 words (target 150-180 words)",
     `- CEFR ${cefr}, simple and natural`,
     "- spoken style, short sentences",
     "",
