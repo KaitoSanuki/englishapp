@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
@@ -521,7 +521,7 @@ const introCopyByTask: Record<string, IntroCopy> = {
   }
 };
 
-export default function TodayLessonPage() {
+function TodayLessonPageInner() {
   const { state, activeWeek, saveTaskRun, saveWeek, setWizardAnswer, undoLastCompletedTask, saveScript, saveRoleplay, saveRetelling, saveAudio, createNextWeek } =
     useAppState();
   const ja = state.language === "ja";
@@ -1808,6 +1808,23 @@ export default function TodayLessonPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function TodayLessonPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-[calc(100vh-112px)] flex flex-col gap-4 overflow-hidden">
+          <section className="glass rounded-xl2 p-4">
+            <p className="text-xs text-slate-700">Today Lesson</p>
+            <h1 className="text-2xl font-black">Loading...</h1>
+          </section>
+        </div>
+      }
+    >
+      <TodayLessonPageInner />
+    </Suspense>
   );
 }
 
