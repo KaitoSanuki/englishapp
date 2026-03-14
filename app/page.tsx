@@ -19,7 +19,7 @@ type FieldDef = {
 type TaskDef = { id: string; en: string; ja: string; fields: FieldDef[] };
 type DayWrap = { fromDay: number; nextDay: number | null };
 type Step2Phase = "prompt" | "paste";
-type Day2Phase = "warmup" | "retell" | "ai" | "review";
+type Day2Phase = "warmup" | "retell" | "aiPrompt" | "aiPaste" | "review";
 type IntroCopy = { titleJa: string; bodyJa: string; titleEn: string; bodyEn: string };
 type RetellingRound = {
   id: string;
@@ -356,16 +356,45 @@ const keywordStopWords = new Set([
   "just", "also", "very", "much", "some", "more", "like", "want", "need", "talk", "speak", "said", "will", "around", "minute"
 ]);
 
-const extractKeywords = (text: string) => {
+const extractKeywordsFromSentence = (sentence: string) => {
   const ordered: string[] = [];
   const seen = new Set<string>();
-  for (const word of text.toLowerCase().match(/[a-z']+/g) ?? []) {
+  for (const word of sentence.toLowerCase().match(/[a-z']+/g) ?? []) {
     if (word.length < 4 || keywordStopWords.has(word)) continue;
     if (seen.has(word)) continue;
     seen.add(word);
     ordered.push(word);
   }
-  return ordered.slice(0, 8);
+  return ordered;
+};
+
+const extractKeywords = (text: string) => {
+  const sourceSentences = splitSentences(text);
+  const ordered: string[] = [];
+  const globalSeen = new Set<string>();
+
+  for (const sentence of sourceSentences) {
+    const perSentence = extractKeywordsFromSentence(sentence);
+    let added = 0;
+    for (const word of perSentence) {
+      if (globalSeen.has(word)) continue;
+      globalSeen.add(word);
+      ordered.push(word);
+      added += 1;
+      if (added >= 2) break;
+    }
+  }
+
+  for (const sentence of sourceSentences) {
+    const perSentence = extractKeywordsFromSentence(sentence);
+    for (const word of perSentence) {
+      if (globalSeen.has(word)) continue;
+      globalSeen.add(word);
+      ordered.push(word);
+    }
+  }
+
+  return ordered.slice(0, Math.max(8, sourceSentences.length * 2));
 };
 
 const introCopyByTask: Record<string, IntroCopy> = {
@@ -784,10 +813,14 @@ function TodayLessonPageInner() {
     }
     if ((task.id === "step4_321" || task.id === "day4_321") && !current) {
       if (day2Phase === "review") {
-        setDay2Phase("ai");
+        setDay2Phase("aiPaste");
         return;
       }
-      if (day2Phase === "ai") {
+      if (day2Phase === "aiPaste") {
+        setDay2Phase("aiPrompt");
+        return;
+      }
+      if (day2Phase === "aiPrompt") {
         setDay2Phase("retell");
         setRetellRoundIndex(retellingRounds.length - 2);
         return;
@@ -840,16 +873,20 @@ function TodayLessonPageInner() {
         if (retellRoundIndex < retellingRounds.length - 1) {
           if (retellRoundIndex >= retellingRounds.length - 2) {
             setRetellRoundIndex(retellingRounds.length - 1);
-            setDay2Phase("ai");
+            setDay2Phase("aiPrompt");
             return;
           }
           setRetellRoundIndex((v) => v + 1);
         } else {
-          setDay2Phase("ai");
+          setDay2Phase("aiPrompt");
         }
         return;
       }
-      if (day2Phase === "ai") {
+      if (day2Phase === "aiPrompt") {
+        setDay2Phase("aiPaste");
+        return;
+      }
+      if (day2Phase === "aiPaste") {
         setDay2Phase("review");
         return;
       }
@@ -1212,7 +1249,7 @@ function TodayLessonPageInner() {
     }
     if (retellRoundIndex >= retellingRounds.length - 2) {
       setRetellRoundIndex(retellingRounds.length - 1);
-      setDay2Phase("ai");
+      setDay2Phase("aiPrompt");
       return;
     }
     setRetellRoundIndex((v) => v + 1);
@@ -1338,7 +1375,13 @@ function TodayLessonPageInner() {
                 <p className="text-sm text-slate-800">
                   {ja ? introCopyByTask[task.id].bodyJa : introCopyByTask[task.id].bodyEn}
                 </p>
-                <button className="btn-primary w-full" onClick={() => setShowTaskIntro(false)}>
+                <button
+                  className="btn-primary w-full"
+                  onClick={() => {
+                    primeSpeech();
+                    setShowTaskIntro(false);
+                  }}
+                >
                   {t.beginDialogueRead}
                 </button>
               </section>
@@ -1591,7 +1634,7 @@ function TodayLessonPageInner() {
                               </button>
                             )}
                           </div>
-                        ) : day2Phase === "ai" ? (
+                        ) : day2Phase === "aiPrompt" ? (
                           <div className="space-y-3">
                             <p className="text-sm font-semibold text-slate-900">{t.aiRoundTitle}</p>
                             <p className="text-sm text-slate-800">{t.aiRoundBody}</p>
@@ -1614,6 +1657,12 @@ function TodayLessonPageInner() {
                             >
                               {t.copyPrompt}
                             </button>
+                            <button className="btn-primary w-full" onClick={() => setDay2Phase("aiPaste")}>
+                              {ja ? "AIの結果を貼る" : "Paste AI Result"}
+                            </button>
+                          </div>
+                        ) : day2Phase === "aiPaste" ? (
+                          <div className="space-y-3">
                             <p className="text-sm font-semibold text-slate-900">{t.aiCorrectedTitle}</p>
                             <textarea
                               className="input min-h-28 text-slate-900"
