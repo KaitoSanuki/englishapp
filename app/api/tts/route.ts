@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 type TtsBody = {
   text?: string;
   speakingRate?: number;
+  model?: "standard" | "wavenet";
 };
 
 const getClient = () => {
@@ -24,12 +25,14 @@ export async function POST(req: NextRequest) {
     }
 
     const speakingRate = typeof body.speakingRate === "number" && body.speakingRate > 0 ? body.speakingRate : 1;
+    const model = body.model === "wavenet" ? "wavenet" : "standard";
+    const voiceName = model === "wavenet" ? "en-US-Wavenet-C" : "en-US-Standard-C";
     const client = getClient();
     const [response] = await client.synthesizeSpeech({
       input: { text },
       voice: {
         languageCode: "en-US",
-        ssmlGender: "FEMALE"
+        name: voiceName
       },
       audioConfig: {
         audioEncoding: "MP3",
@@ -56,4 +59,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

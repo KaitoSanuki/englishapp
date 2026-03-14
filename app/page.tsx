@@ -6,6 +6,7 @@ import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
 import { step2Prompt, step6Prompt } from "@/lib/prompts";
 import { Recorder } from "@/components/Recorder";
+import { getCachedGoogleTtsBlob, getGoogleTtsBlob, playBlob, preCacheTextSegments, splitForTts } from "@/lib/google-tts-client";
 
 type FieldType = "text" | "textarea" | "select" | "yesno";
 type FieldDef = {
@@ -568,8 +569,20 @@ const introCopyByTask: Record<string, IntroCopy> = {
 };
 
 function TodayLessonPageInner() {
-  const { state, activeWeek, saveTaskRun, saveWeek, setWizardAnswer, undoLastCompletedTask, saveScript, saveRoleplay, saveRetelling, saveAudio, createNextWeek } =
-    useAppState();
+  const {
+    state,
+    activeWeek,
+    saveTaskRun,
+    saveWeek,
+    setWizardAnswer,
+    undoLastCompletedTask,
+    saveScript,
+    saveRoleplay,
+    saveRetelling,
+    saveAudio,
+    saveMaterialAudio,
+    createNextWeek
+  } = useAppState();
   const ja = state.language === "ja";
   const t = ja ? TX.ja : TX.en;
   const router = useRouter();
@@ -610,6 +623,7 @@ function TodayLessonPageInner() {
   const day7ChunksRef = useRef<Blob[]>([]);
   const day7MimeRef = useRef("");
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsPlayIdRef = useRef(0);
   const englishVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const [autoReadKey, setAutoReadKey] = useState("");
   const [autoReviewKey, setAutoReviewKey] = useState("");
@@ -1026,6 +1040,7 @@ function TodayLessonPageInner() {
 
   const stopSpeech = () => {
     if (typeof window === "undefined") return;
+    ttsPlayIdRef.current += 1;
     window.speechSynthesis.cancel();
     if (ttsAudioRef.current) {
       ttsAudioRef.current.pause();
@@ -1075,18 +1090,31 @@ function TodayLessonPageInner() {
   const speakGoogle = async (payload: string) => {
     if (!payload) return;
     stopSpeech();
-    const res = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: payload, speakingRate: 0.95 })
-    });
-    if (!res.ok) throw new Error("Google TTS request failed");
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    ttsAudioRef.current = audio;
-    audio.onended = () => URL.revokeObjectURL(url);
-    await audio.play();
+    const runId = ttsPlayIdRef.current;
+    const parts = splitForTts(payload);
+    for (const part of parts) {
+      if (runId !== ttsPlayIdRef.current) return;
+      const blob = await getGoogleTtsBlob(part, 0.95, state.prefs.ttsModel);
+      if (!blob || runId !== ttsPlayIdRef.current) return;
+      await playBlob(blob, ttsAudioRef);
+    }
+  };
+
+  const speakGoogleCachedOnly = async (payload: string) => {
+    if (!payload) return;
+    stopSpeech();
+    const runId = ttsPlayIdRef.current;
+    const parts = splitForTts(payload);
+    for (const part of parts) {
+      if (runId !== ttsPlayIdRef.current) return;
+      const blob = await getCachedGoogleTtsBlob(part, 0.95, state.prefs.ttsModel);
+      if (!blob) {
+        speakWeb(payload);
+        return;
+      }
+      if (runId !== ttsPlayIdRef.current) return;
+      await playBlob(blob, ttsAudioRef);
+    }
   };
 
   const speak = async (payload: string) => {
@@ -1094,6 +1122,20 @@ function TodayLessonPageInner() {
     if (state.prefs.ttsEngine === "google") {
       try {
         await speakGoogle(payload);
+        return;
+      } catch {
+        speakWeb(payload);
+        return;
+      }
+    }
+    speakWeb(payload);
+  };
+
+  const speakWarmup = async (payload: string) => {
+    if (!payload) return;
+    if (state.prefs.ttsEngine === "google") {
+      try {
+        await speakGoogleCachedOnly(payload);
         return;
       } catch {
         speakWeb(payload);
@@ -1139,7 +1181,7 @@ function TodayLessonPageInner() {
     if (autoWarmupKey === key) return;
     const id = window.setTimeout(() => {
       setAutoWarmupKey(key);
-      speak(retellSourceText);
+      speakWarmup(retellSourceText);
     }, 250);
     return () => window.clearTimeout(id);
   }, [autoWarmupKey, current, day2Phase, dayWrap, retellSourceText, showTaskIntro, startCardDay, task.id, transitioning]);
@@ -1304,6 +1346,18 @@ function TodayLessonPageInner() {
         phrasesText: retellKeywords.join(", "),
         createdAt: new Date().toISOString()
       });
+      saveMaterialAudio({
+        id: crypto.randomUUID(),
+        weekId: activeWeek.id,
+        kind: "day2_full",
+        text: correctedText,
+        model: state.prefs.ttsModel,
+        speakingRate: 0.95,
+        createdAt: new Date().toISOString()
+      });
+      if (state.prefs.ttsEngine === "google") {
+        void preCacheTextSegments(correctedText, 0.95, state.prefs.ttsModel);
+      }
       setDay2CorrectionText(correctedText);
       setDay2Phase("review");
       return;
@@ -1485,6 +1539,18 @@ function TodayLessonPageInner() {
                             enScript: step2PasteText.trim(),
                             createdAt: new Date().toISOString()
                           });
+                          saveMaterialAudio({
+                            id: crypto.randomUUID(),
+                            weekId: activeWeek.id,
+                            kind: "day1_full",
+                            text: step2PasteText.trim(),
+                            model: state.prefs.ttsModel,
+                            speakingRate: 0.95,
+                            createdAt: new Date().toISOString()
+                          });
+                          if (state.prefs.ttsEngine === "google") {
+                            void preCacheTextSegments(step2PasteText.trim(), 0.95, state.prefs.ttsModel);
+                          }
                           finishStep();
                         }}
                         disabled={!step2PasteText.trim()}
@@ -1638,7 +1704,7 @@ function TodayLessonPageInner() {
                             <p className="text-sm text-slate-800">{t.warmupBody}</p>
                             <article className="input whitespace-pre-wrap text-slate-900">{retellSourceText}</article>
                             <div className="flex gap-2">
-                              <button className="btn-secondary flex-1" onClick={() => speak(retellSourceText)}>
+                              <button className="btn-secondary flex-1" onClick={() => void speakWarmup(retellSourceText)}>
                                 {t.playAll}
                               </button>
                               <button className="btn-primary flex-1" onClick={() => setDay2Phase("retell")}>

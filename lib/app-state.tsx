@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AppState, AudioRecordItem, Language, RetellingItem, RoleplayItem, ScriptItem, TaskRun, WeekPlan } from "@/lib/types";
+import { AppState, AudioRecordItem, Language, MaterialAudioItem, RetellingItem, RoleplayItem, ScriptItem, TaskRun, WeekPlan } from "@/lib/types";
 
 const STORAGE_KEY = "englishapp_state_v02";
 
@@ -30,7 +30,8 @@ const defaultState: AppState = {
   language: "en",
   prefs: {
     defaultCefr: "A2",
-    ttsEngine: "web"
+    ttsEngine: "web",
+    ttsModel: "standard"
   },
   wizardAnswers: {},
   weeks: [defaultWeek],
@@ -40,6 +41,7 @@ const defaultState: AppState = {
   roleplays: [],
   retellings: [],
   audioRecords: [],
+  materialAudios: [],
   reviewMemo: ""
 };
 
@@ -49,6 +51,7 @@ type AppStateContextType = {
   setLanguage: (lang: Language) => void;
   setDefaultCefr: (cefr: WeekPlan["cefr"]) => void;
   setTtsEngine: (engine: "web" | "google") => void;
+  setTtsModel: (model: "standard" | "wavenet") => void;
   setWizardAnswer: (key: string, value: string) => void;
   resetWeekData: (weekId: string) => void;
   undoLastCompletedTask: (weekId: string) => void;
@@ -59,6 +62,7 @@ type AppStateContextType = {
   saveRoleplay: (item: RoleplayItem) => void;
   saveRetelling: (item: RetellingItem) => void;
   saveAudio: (item: AudioRecordItem) => void;
+  saveMaterialAudio: (item: MaterialAudioItem) => void;
   setReviewMemo: (memo: string) => void;
   createNextWeek: () => void;
   toggleWeekFavorite: (weekId: string) => void;
@@ -94,7 +98,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       scripts: next.scripts.filter((x) => keepIds.has(x.weekId)),
       roleplays: next.roleplays.filter((x) => keepIds.has(x.weekId)),
       retellings: next.retellings.filter((x) => keepIds.has(x.weekId)),
-      audioRecords: next.audioRecords.filter((x) => keepIds.has(x.weekId))
+      audioRecords: next.audioRecords.filter((x) => keepIds.has(x.weekId)),
+      materialAudios: next.materialAudios.filter((x) => keepIds.has(x.weekId))
     };
   };
 
@@ -139,6 +144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLanguage: (lang) => setState((prev) => ({ ...prev, language: lang })),
     setDefaultCefr: (cefr) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, defaultCefr: cefr } })),
     setTtsEngine: (engine) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, ttsEngine: engine } })),
+    setTtsModel: (model) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, ttsModel: model } })),
     setWizardAnswer: (key, value) =>
       setState((prev) => ({
         ...prev,
@@ -161,6 +167,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           roleplays: prev.roleplays.filter((x) => x.weekId !== weekId),
           retellings: prev.retellings.filter((x) => x.weekId !== weekId),
           audioRecords: prev.audioRecords.filter((x) => x.weekId !== weekId),
+          materialAudios: prev.materialAudios.filter((x) => x.weekId !== weekId),
           reviewMemo: "",
           wizardAnswers: nextAnswers
         };
@@ -193,6 +200,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveRoleplay: (item) => setState((prev) => ({ ...prev, roleplays: [item, ...prev.roleplays] })),
     saveRetelling: (item) => setState((prev) => ({ ...prev, retellings: [item, ...prev.retellings] })),
     saveAudio: (item) => setState((prev) => ({ ...prev, audioRecords: [item, ...prev.audioRecords] })),
+    saveMaterialAudio: (item) =>
+      setState((prev) => {
+        const nextList = prev.materialAudios.filter((x) => !(x.weekId === item.weekId && x.kind === item.kind));
+        return { ...prev, materialAudios: [item, ...nextList] };
+      }),
     setReviewMemo: (memo) => setState((prev) => ({ ...prev, reviewMemo: memo })),
     createNextWeek: () =>
       setState((prev) => {

@@ -4,6 +4,7 @@ export type Language = "en" | "ja";
 export type UserPrefs = {
   defaultCefr: CEFR;
   ttsEngine: "web" | "google";
+  ttsModel: "standard" | "wavenet";
 };
 
 export type WeekPlan = {
@@ -69,6 +70,16 @@ export type AudioRecordItem = {
   createdAt: string;
 };
 
+export type MaterialAudioItem = {
+  id: string;
+  weekId: string;
+  kind: "day1_full" | "day2_full";
+  text: string;
+  model: "standard" | "wavenet";
+  speakingRate: number;
+  createdAt: string;
+};
+
 export type AppState = {
   language: Language;
   prefs: UserPrefs;
@@ -80,5 +91,6 @@ export type AppState = {
   roleplays: RoleplayItem[];
   retellings: RetellingItem[];
   audioRecords: AudioRecordItem[];
+  materialAudios: MaterialAudioItem[];
   reviewMemo: string;
 };
