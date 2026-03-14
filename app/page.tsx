@@ -272,6 +272,23 @@ const weekPlan: TaskDef[][] = [
   ]
 ];
 
+const roleplayTaskIds: string[] = ["step6_roleplay", "day4_roleplay", "day5_roleplay_1", "day5_roleplay_2", "day6_roleplay", "day7_roleplay"];
+const dialogueReadTaskIds: string[] = ["step3_revised", "day4_review_start", "day4_review_end", "day5_review_1", "day5_review_2", "day6_review", "day7_review"];
+const saveDialogueTaskIds: string[] = ["step7_correct", "day4_save", "day5_save_1", "day5_save_2", "day6_save", "day7_save"];
+const simpleReadTaskIds: string[] = ["step3_read"];
+
+const pickBestEnglishVoice = (voices: SpeechSynthesisVoice[]) => {
+  const englishVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith("en"));
+  if (!englishVoices.length) return null;
+  const preferredNames = ["Samantha", "Karen", "Daniel", "Alex", "Moira", "Tessa", "Siri"];
+  for (const preferred of preferredNames) {
+    const found = englishVoices.find((voice) => voice.name.includes(preferred));
+    if (found) return found;
+  }
+  const localVoice = englishVoices.find((voice) => voice.localService);
+  return localVoice ?? englishVoices[0];
+};
+
 const fkey = (weekId: string, taskId: string, key: string) => `${weekId}:${taskId}:${key}`;
 const hasValue = (v: string | undefined) => !!v && v !== "__skip__";
 const taskHasAction = (taskId: string) =>
@@ -592,6 +609,7 @@ function TodayLessonPageInner() {
   const day7MediaRef = useRef<MediaRecorder | null>(null);
   const day7ChunksRef = useRef<Blob[]>([]);
   const day7MimeRef = useRef("");
+  const englishVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const [autoReadKey, setAutoReadKey] = useState("");
   const [autoReviewKey, setAutoReviewKey] = useState("");
   const [autoWarmupKey, setAutoWarmupKey] = useState("");
@@ -681,6 +699,18 @@ function TodayLessonPageInner() {
     }
     setShowTaskIntro(false);
   }, [current, task.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const assignVoice = () => {
+      englishVoiceRef.current = pickBestEnglishVoice(window.speechSynthesis.getVoices());
+    };
+    assignVoice();
+    window.speechSynthesis.addEventListener("voiceschanged", assignVoice);
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", assignVoice);
+    };
+  }, []);
 
   useEffect(() => {
     if (task.id !== "step4_321" && task.id !== "day4_321") return;
@@ -939,14 +969,6 @@ function TodayLessonPageInner() {
   };
 
   const step2 = step2Prompt(effectiveCefr, values.topic || activeWeek.topicTitle, state.language);
-  const roleplayTaskIds = [
-    "step6_roleplay",
-    "day4_roleplay",
-    "day5_roleplay_1",
-    "day5_roleplay_2",
-    "day6_roleplay",
-    "day7_roleplay"
-  ];
   const isRoleplayTask = roleplayTaskIds.includes(task.id);
   const roleplayDuration =
     task.id === "day5_roleplay_1" || task.id === "day5_roleplay_2" ? 20 : task.id === "day6_roleplay" || task.id === "day7_roleplay" ? 30 : 5;
@@ -955,9 +977,6 @@ function TodayLessonPageInner() {
     : t.day3Goal;
   const day3ReferenceScripts = [latestScript?.enScript || "", latestRoleplay?.correctionText || ""].filter(Boolean);
   const step6 = step6Prompt(effectiveCefr, activeWeek.topicTitle, roleplayGoal, roleplayDuration, day3ReferenceScripts, state.language);
-  const dialogueReadTaskIds = ["step3_revised", "day4_review_start", "day4_review_end", "day5_review_1", "day5_review_2", "day6_review", "day7_review"];
-  const saveDialogueTaskIds = ["step7_correct", "day4_save", "day5_save_1", "day5_save_2", "day6_save", "day7_save"];
-  const simpleReadTaskIds = ["step3_read"];
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
   const hideProgress = !!dayWrap || startCardDay !== null;
   const latestDay3Correction = day3CorrectionText.trim() || latestRoleplay?.correctionText || "";
@@ -1037,7 +1056,13 @@ function TodayLessonPageInner() {
     if (!payload) return;
     stopSpeech();
     const u = new SpeechSynthesisUtterance(payload);
-    u.lang = "en-US";
+    const englishVoice = englishVoiceRef.current;
+    if (englishVoice) {
+      u.voice = englishVoice;
+      u.lang = englishVoice.lang;
+    } else {
+      u.lang = "en-US";
+    }
     u.rate = 0.95;
     window.speechSynthesis.speak(u);
   };
@@ -1200,7 +1225,7 @@ function TodayLessonPageInner() {
     return () => {
       window.clearTimeout(id);
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, showTaskIntro, startCardDay, task.id, transitioning, dialogueReadTaskIds]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, dayWrap, showTaskIntro, startCardDay, task.id, transitioning]);
 
   useEffect(() => {
     if (!dialogueReadTaskIds.includes(task.id)) return;
@@ -1215,7 +1240,7 @@ function TodayLessonPageInner() {
     return () => {
       window.clearTimeout(id);
     };
-  }, [currentDialogueCard?.ai, currentDialogueKey, dialogueAutoplayReady, lastAutoplayKey, showTaskIntro, task.id, dialogueReadTaskIds]);
+  }, [currentDialogueCard?.ai, currentDialogueKey, dialogueAutoplayReady, lastAutoplayKey, showTaskIntro, task.id]);
 
   const formatTimer = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
