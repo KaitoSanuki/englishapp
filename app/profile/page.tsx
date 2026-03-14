@@ -9,6 +9,7 @@ const JA = {
   title: "\u8a2d\u5b9a / \u30d8\u30eb\u30d7",
   desc: "Prompt-first\u904b\u7528\u3002v0.x\u3067\u306fAPI\u9023\u643a\u306a\u3057\u3002",
   language: "\u8868\u793a\u8a00\u8a9e",
+  ttsEngine: "読み上げエンジン",
   defaultCefr: "\u30c7\u30d5\u30a9\u30eb\u30c8 CEFR",
   defaultDesc: "\u300c\u4eca\u65e5\u306e\u30ec\u30c3\u30b9\u30f3\u300d\u30bf\u30d6\u3067\u30c7\u30d5\u30a9\u30eb\u30c8\u3068\u3057\u3066\u63d0\u6848\u3055\u308c\u307e\u3059\u3002",
   glossary: "\u7528\u8a9e\u30d8\u30eb\u30d7"
@@ -41,7 +42,7 @@ const glossaryJa = [
 ];
 
 export default function ProfilePage() {
-  const { state, setLanguage, setDefaultCefr } = useAppState();
+  const { state, setLanguage, setDefaultCefr, setTtsEngine } = useAppState();
   const ja = state.language === "ja";
   const glossary = ja ? glossaryJa : glossaryEn;
 
@@ -62,6 +63,21 @@ export default function ProfilePage() {
             {"\u65e5\u672c\u8a9e"}
           </button>
         </div>
+      </section>
+
+      <section className="glass rounded-xl2 p-4 space-y-3">
+        <h2 className="text-base font-bold text-slate-900">{ja ? JA.ttsEngine : "TTS Engine"}</h2>
+        <div className="flex gap-2">
+          <button className={state.prefs.ttsEngine === "web" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("web")}>
+            Web Speech
+          </button>
+          <button className={state.prefs.ttsEngine === "google" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("google")}>
+            Google TTS
+          </button>
+        </div>
+        <p className="text-xs text-slate-900">
+          {ja ? "Google TTS は /api/tts と Vercel環境変数 GOOGLE_TTS_CREDENTIALS_JSON が必要です。" : "Google TTS requires /api/tts and Vercel env GOOGLE_TTS_CREDENTIALS_JSON."}
+        </p>
       </section>
 
       <section className="glass rounded-xl2 p-4 space-y-3">

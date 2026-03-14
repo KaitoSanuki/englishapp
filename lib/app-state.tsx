@@ -29,7 +29,8 @@ const defaultWeek: WeekPlan = {
 const defaultState: AppState = {
   language: "en",
   prefs: {
-    defaultCefr: "A2"
+    defaultCefr: "A2",
+    ttsEngine: "web"
   },
   wizardAnswers: {},
   weeks: [defaultWeek],
@@ -47,6 +48,7 @@ type AppStateContextType = {
   activeWeek: WeekPlan;
   setLanguage: (lang: Language) => void;
   setDefaultCefr: (cefr: WeekPlan["cefr"]) => void;
+  setTtsEngine: (engine: "web" | "google") => void;
   setWizardAnswer: (key: string, value: string) => void;
   resetWeekData: (weekId: string) => void;
   undoLastCompletedTask: (weekId: string) => void;
@@ -136,6 +138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     activeWeek,
     setLanguage: (lang) => setState((prev) => ({ ...prev, language: lang })),
     setDefaultCefr: (cefr) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, defaultCefr: cefr } })),
+    setTtsEngine: (engine) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, ttsEngine: engine } })),
     setWizardAnswer: (key, value) =>
       setState((prev) => ({
         ...prev,

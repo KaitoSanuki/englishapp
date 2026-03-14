@@ -609,6 +609,7 @@ function TodayLessonPageInner() {
   const day7MediaRef = useRef<MediaRecorder | null>(null);
   const day7ChunksRef = useRef<Blob[]>([]);
   const day7MimeRef = useRef("");
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const englishVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const [autoReadKey, setAutoReadKey] = useState("");
   const [autoReviewKey, setAutoReviewKey] = useState("");
@@ -1026,6 +1027,10 @@ function TodayLessonPageInner() {
   const stopSpeech = () => {
     if (typeof window === "undefined") return;
     window.speechSynthesis.cancel();
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
+    }
   };
 
   const primeSpeech = () => {
@@ -1052,7 +1057,7 @@ function TodayLessonPageInner() {
     }
   }, [transitioning, dayWrap, startCardDay]);
 
-  const speak = (payload: string) => {
+  const speakWeb = (payload: string) => {
     if (!payload) return;
     stopSpeech();
     const u = new SpeechSynthesisUtterance(payload);
@@ -1065,6 +1070,37 @@ function TodayLessonPageInner() {
     }
     u.rate = 0.95;
     window.speechSynthesis.speak(u);
+  };
+
+  const speakGoogle = async (payload: string) => {
+    if (!payload) return;
+    stopSpeech();
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: payload, speakingRate: 0.95 })
+    });
+    if (!res.ok) throw new Error("Google TTS request failed");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    ttsAudioRef.current = audio;
+    audio.onended = () => URL.revokeObjectURL(url);
+    await audio.play();
+  };
+
+  const speak = async (payload: string) => {
+    if (!payload) return;
+    if (state.prefs.ttsEngine === "google") {
+      try {
+        await speakGoogle(payload);
+        return;
+      } catch {
+        speakWeb(payload);
+        return;
+      }
+    }
+    speakWeb(payload);
   };
 
   useEffect(() => {

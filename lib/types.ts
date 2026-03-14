@@ -3,6 +3,7 @@ export type Language = "en" | "ja";
 
 export type UserPrefs = {
   defaultCefr: CEFR;
+  ttsEngine: "web" | "google";
 };
 
 export type WeekPlan = {
