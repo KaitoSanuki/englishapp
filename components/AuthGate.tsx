@@ -4,15 +4,17 @@ import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { AppIntroModal, shouldSkipIntro } from "@/components/AppIntroModal";
 
-type Mode = "menu" | "signup" | "signin";
+type Mode = "menu" | "signup" | "signin" | "verify";
 
 export function AuthGate() {
   const { state, auth, signIn, signUp } = useAppState();
   const ja = state.language === "ja";
+
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<Mode>("menu");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
   const [message, setMessage] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
@@ -23,8 +25,10 @@ export function AuthGate() {
 
   if (!ready) return null;
 
-  const closeGate = () => setDismissed(true);
   const needsGate = !dismissed && auth.mode !== "user";
+  const openIntroIfNeeded = () => {
+    if (!shouldSkipIntro()) setShowIntro(true);
+  };
 
   return (
     <>
@@ -38,7 +42,7 @@ export function AuthGate() {
               <p className="text-sm text-slate-700">{ja ? "開始方法を選んでください。" : "Choose how you want to start."}</p>
             </header>
 
-            {mode === "menu" ? (
+            {mode === "menu" && (
               <div className="space-y-2">
                 {auth.enabled && (
                   <>
@@ -53,15 +57,17 @@ export function AuthGate() {
                 <button
                   className="btn-secondary w-full"
                   onClick={() => {
-                    closeGate();
-                    if (!shouldSkipIntro()) setShowIntro(true);
+                    setDismissed(true);
+                    openIntroIfNeeded();
                   }}
                 >
                   {ja ? "ゲストで始める" : "Continue as Guest"}
                 </button>
                 {!auth.enabled && <p className="text-xs text-rose-700">{ja ? "Supabase未設定のためゲストのみ利用可能です。" : "Supabase is not configured. Guest mode only."}</p>}
               </div>
-            ) : (
+            )}
+
+            {(mode === "signup" || mode === "signin") && (
               <div className="space-y-2">
                 <input className="input text-slate-900" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 <input className="input text-slate-900" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -73,19 +79,14 @@ export function AuthGate() {
                     try {
                       if (mode === "signup") {
                         await signUp(email.trim(), password);
-                        setMode("signin");
+                        setPendingEmail(email.trim());
                         setPassword("");
-                        setMessage(
-                          ja
-                            ? "確認メールを送信しました。メール内リンクを開いてからログインしてください。"
-                            : "Confirmation email sent. Open the link in your email, then sign in."
-                        );
+                        setMode("verify");
                         return;
                       }
-
                       await signIn(email.trim(), password);
-                      closeGate();
-                      if (!shouldSkipIntro()) setShowIntro(true);
+                      setDismissed(true);
+                      openIntroIfNeeded();
                     } catch (error) {
                       setMessage(error instanceof Error ? error.message : ja ? "認証に失敗しました。" : "Authentication failed.");
                     }
@@ -97,6 +98,24 @@ export function AuthGate() {
                   {ja ? "戻る" : "Back"}
                 </button>
                 {(message || auth.error) && <p className="text-xs text-slate-900">{message || auth.error}</p>}
+              </div>
+            )}
+
+            {mode === "verify" && (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-900">
+                  {ja
+                    ? `${pendingEmail || "登録メール"} に確認メールを送信しました。メールのリンクを開いてからログインしてください。`
+                    : `We sent a confirmation email to ${pendingEmail || "your email address"}. Open the link, then sign in.`}
+                </p>
+                <div className="flex gap-2">
+                  <button className="btn-secondary flex-1" onClick={openIntroIfNeeded}>
+                    {ja ? "アプリ説明を見る" : "View App Intro"}
+                  </button>
+                  <button className="btn-primary flex-1" onClick={() => setMode("signin")}>
+                    {ja ? "ログインへ" : "Go to Sign In"}
+                  </button>
+                </div>
               </div>
             )}
           </section>
