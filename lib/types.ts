@@ -83,6 +83,7 @@ export type MaterialAudioItem = {
 
 export type AppState = {
   language: Language;
+  lessonFocusActive: boolean;
   prefs: UserPrefs;
   wizardAnswers: Record<string, string>;
   weeks: WeekPlan[];

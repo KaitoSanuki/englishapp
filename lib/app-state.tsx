@@ -42,6 +42,7 @@ const defaultWeek: WeekPlan = {
 
 const defaultState: AppState = {
   language: "ja",
+  lessonFocusActive: false,
   prefs: {
     defaultCefr: "A2",
     ttsEngine: "web",
@@ -70,6 +71,7 @@ type AppStateContextType = {
   state: AppState;
   activeWeek: WeekPlan;
   auth: AuthState;
+  setLessonFocusActive: (active: boolean) => void;
   setLanguage: (lang: Language) => void;
   setDefaultCefr: (cefr: WeekPlan["cefr"]) => void;
   setTtsEngine: (engine: "web" | "google" | "elevenlabs") => void;
@@ -326,6 +328,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     state,
     activeWeek,
     auth,
+    setLessonFocusActive: (active) => setState((prev) => ({ ...prev, lessonFocusActive: active })),
     setLanguage: (lang) => setState((prev) => ({ ...prev, language: lang })),
     setDefaultCefr: (cefr) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, defaultCefr: cefr } })),
     setTtsEngine: (engine) =>

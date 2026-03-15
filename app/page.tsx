@@ -574,6 +574,7 @@ function TodayLessonPageInner() {
     state,
     auth,
     activeWeek,
+    setLessonFocusActive,
     saveTaskRun,
     saveWeek,
     setWizardAnswer,
@@ -969,6 +970,7 @@ function TodayLessonPageInner() {
     if (!dayWrap) return;
     primeSpeech();
     stopSpeech();
+    setLessonFocusActive(false);
     if (dayWrap.nextDay !== null) setStartCardDay(dayWrap.nextDay);
     setDayWrap(null);
   };
@@ -976,12 +978,14 @@ function TodayLessonPageInner() {
   const startNextDay = () => {
     primeSpeech();
     stopSpeech();
+    setLessonFocusActive(true);
     setStartCardDay(null);
   };
 
   const startNewTheme = () => {
     primeSpeech();
     stopSpeech();
+    setLessonFocusActive(true);
     createNextWeek();
     setDayWrap(null);
     setStartCardDay(null);
@@ -998,6 +1002,12 @@ function TodayLessonPageInner() {
   const step6 = step6Prompt(effectiveCefr, activeWeek.topicTitle, roleplayGoal, roleplayDuration, day3ReferenceScripts, state.language);
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
   const hideProgress = !!dayWrap || startCardDay !== null;
+
+  useEffect(() => {
+    // Lesson focus mode: lock other tabs while a day lesson is in progress.
+    setLessonFocusActive(!dayWrap && startCardDay === null);
+  }, [dayWrap, setLessonFocusActive, startCardDay]);
+
   const latestDay3Correction = day3CorrectionText.trim() || latestRoleplay?.correctionText || "";
   const readText =
     task.id === "step3_read"
@@ -2017,9 +2027,15 @@ function TodayLessonPageInner() {
               {t.skip}
             </button>
           </div>
-          <a href="/practice" className="btn-secondary w-full block text-center py-3">
-            {t.openProgress}
-          </a>
+          {state.lessonFocusActive ? (
+            <p className="w-full rounded-xl bg-slate-200 px-3 py-3 text-center text-sm font-semibold text-slate-600">
+              {ja ? "集中モード中：今日のレッスン終了まで他タブはロックされています" : "Focus mode: other tabs are locked until today's lesson ends."}
+            </p>
+          ) : (
+            <a href="/practice" className="btn-secondary w-full block text-center py-3">
+              {t.openProgress}
+            </a>
+          )}
         </div>
       </section>
     </div>

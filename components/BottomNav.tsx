@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useAppState } from "@/lib/app-state";
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { state } = useAppState();
   const ja = state.language === "ja";
+  const locked = state.lessonFocusActive && pathname !== "/";
+
+  useEffect(() => {
+    if (locked) {
+      router.replace("/");
+    }
+  }, [locked, router]);
+
   const tabs = [
     { href: "/", label: ja ? "\u4eca\u65e5\u306e\u30ec\u30c3\u30b9\u30f3" : "Today" },
     { href: "/practice", label: ja ? "\u9032\u6357" : "Progress" },
@@ -20,14 +30,19 @@ export function BottomNav() {
       <ul className="grid grid-cols-4 gap-1 text-xs">
         {tabs.map((tab) => {
           const active = pathname === tab.href;
+          const disabled = state.lessonFocusActive && tab.href !== "/";
           return (
             <li key={tab.href}>
-              <Link
-                className={`block rounded-xl px-2 py-2 text-center font-semibold ${active ? "bg-accent text-white" : "text-slate-700 dark:text-slate-300"}`}
-                href={tab.href}
-              >
-                {tab.label}
-              </Link>
+              {disabled ? (
+                <span className="block rounded-xl px-2 py-2 text-center font-semibold text-slate-400">{tab.label}</span>
+              ) : (
+                <Link
+                  className={`block rounded-xl px-2 py-2 text-center font-semibold ${active ? "bg-accent text-white" : "text-slate-700 dark:text-slate-300"}`}
+                  href={tab.href}
+                >
+                  {tab.label}
+                </Link>
+              )}
             </li>
           );
         })}
