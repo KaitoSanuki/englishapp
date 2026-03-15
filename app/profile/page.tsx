@@ -68,7 +68,7 @@ export default function ProfilePage() {
     setMessage("");
     try {
       await signUp(email.trim(), password);
-      setMessage(ja ? "確認メールを送信しました。メール確認後にログインしてください。" : "Confirmation email sent. Confirm email, then sign in.");
+      setMessage(ja ? "Supabase Authから確認メールが届きます。メール確認後にログインしてください。" : "Confirmation email sent. Confirm email, then sign in.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sign up failed.");
     }

@@ -172,7 +172,7 @@ export function AuthGate() {
               <div className="space-y-3 pt-1">
                 <p className="text-sm text-slate-900">
                   {ja
-                    ? "確認メールを送信しました。メール内のリンクを開いて認証してください。認証後、この画面でログインしてください。"
+                    ? "Supabase Authから確認メールが届きます。メール内のリンクを開いて認証してください。"
                     : "We sent a confirmation email. Open the link in your email to verify, then come back and sign in."}
                 </p>
                 <button className="btn-secondary w-full" onClick={() => setMode("menu")}>
