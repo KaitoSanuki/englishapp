@@ -41,7 +41,7 @@ const defaultWeek: WeekPlan = {
 };
 
 const defaultState: AppState = {
-  language: "en",
+  language: "ja",
   prefs: {
     defaultCefr: "A2",
     ttsEngine: "web",
@@ -104,7 +104,7 @@ const hydrateState = (input: Partial<AppState> | null | undefined): AppState => 
     ...(input?.prefs ?? {})
   },
   wizardAnswers: input?.wizardAnswers ?? {},
-  language: (input?.language === "ja" ? "ja" : "en") as Language,
+  language: (input?.language === "en" ? "en" : "ja") as Language,
   weeks: (input?.weeks ?? defaultState.weeks).map((w) => ({
     ...w,
     isFavorite: !!w.isFavorite,

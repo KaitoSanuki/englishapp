@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppProvider } from "@/lib/app-state";
 import { BottomNav } from "@/components/BottomNav";
 import { PWARegister } from "@/components/PWARegister";
+import { AuthGate } from "@/components/AuthGate";
 
 export const viewport: Viewport = {
   themeColor: "#1f7a8c",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AppProvider>
           <PWARegister />
+          <AuthGate />
           <main className="mx-auto w-[min(96vw,560px)] pb-24 pt-4">{children}</main>
           <BottomNav />
         </AppProvider>
