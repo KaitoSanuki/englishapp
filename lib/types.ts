@@ -3,7 +3,7 @@ export type Language = "en" | "ja";
 
 export type UserPrefs = {
   defaultCefr: CEFR;
-  ttsEngine: "web" | "google";
+  ttsEngine: "web" | "google" | "elevenlabs";
   ttsModel: "standard" | "wavenet";
 };
 

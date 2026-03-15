@@ -50,7 +50,7 @@ type AppStateContextType = {
   activeWeek: WeekPlan;
   setLanguage: (lang: Language) => void;
   setDefaultCefr: (cefr: WeekPlan["cefr"]) => void;
-  setTtsEngine: (engine: "web" | "google") => void;
+  setTtsEngine: (engine: "web" | "google" | "elevenlabs") => void;
   setTtsModel: (model: "standard" | "wavenet") => void;
   setWizardAnswer: (key: string, value: string) => void;
   resetWeekData: (weekId: string) => void;

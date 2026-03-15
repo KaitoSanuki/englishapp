@@ -31,10 +31,11 @@ export default function MaterialsPage() {
     stopPlayback();
     const runId = playIdRef.current;
     setPlayingKey(key);
+    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     try {
       for (const part of splitForTts(text)) {
         if (runId !== playIdRef.current) return;
-        const blob = await getGoogleTtsBlob(part, rate, model);
+        const blob = await getGoogleTtsBlob(part, rate, model, provider);
         if (!blob || runId !== playIdRef.current) return;
         await playBlob(blob, audioRef);
       }
@@ -47,7 +48,7 @@ export default function MaterialsPage() {
     <div className="space-y-4">
       <section className="glass rounded-xl2 p-4">
         <h1 className="text-xl font-black text-slate-900">{ja ? "教材" : "Materials"}</h1>
-        <p className="text-sm text-slate-900">{ja ? "テーマごとの台本・教材音声・録音を見返せます（最新10件 + お気に入り）" : "Review scripts, model audios, and recordings by theme (latest 10 + favorites)."}</p>
+        <p className="text-sm text-slate-900">{ja ? "テーマごとの台本・教材音声・録音を見返せます（最新10件 + お気に入り）。" : "Review scripts, model audios, and recordings by theme (latest 10 + favorites)."}</p>
       </section>
 
       {orderedWeeks.map((week) => {
@@ -140,4 +141,3 @@ export default function MaterialsPage() {
     </div>
   );
 }
-

@@ -5,6 +5,7 @@ type TtsBody = {
   text?: string;
   speakingRate?: number;
   model?: "standard" | "wavenet";
+  provider?: "google" | "elevenlabs";
 };
 
 const getClient = () => {
@@ -25,6 +26,45 @@ export async function POST(req: NextRequest) {
     }
 
     const speakingRate = typeof body.speakingRate === "number" && body.speakingRate > 0 ? body.speakingRate : 1;
+    const provider = body.provider === "elevenlabs" ? "elevenlabs" : "google";
+
+    if (provider === "elevenlabs") {
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      const voiceId = process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
+      const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5";
+      if (!apiKey) {
+        return NextResponse.json({ error: "Missing ELEVENLABS_API_KEY" }, { status: 500 });
+      }
+      const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg"
+        },
+        body: JSON.stringify({
+          text,
+          model_id: modelId,
+          voice_settings: {
+            stability: 0.45,
+            similarity_boost: 0.8
+          }
+        })
+      });
+      if (!elevenRes.ok) {
+        const reason = await elevenRes.text();
+        return NextResponse.json({ error: `ElevenLabs failed: ${reason}` }, { status: 500 });
+      }
+      const audioBuffer = Buffer.from(await elevenRes.arrayBuffer());
+      return new NextResponse(audioBuffer, {
+        status: 200,
+        headers: {
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
     const model = body.model === "wavenet" ? "wavenet" : "standard";
     const voiceName = model === "wavenet" ? "en-US-Wavenet-C" : "en-US-Standard-C";
     const client = getClient();

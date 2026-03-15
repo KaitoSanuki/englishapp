@@ -1092,9 +1092,10 @@ function TodayLessonPageInner() {
     stopSpeech();
     const runId = ttsPlayIdRef.current;
     const parts = splitForTts(payload);
+    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== ttsPlayIdRef.current) return;
-      const blob = await getGoogleTtsBlob(part, 0.95, state.prefs.ttsModel);
+      const blob = await getGoogleTtsBlob(part, 0.95, state.prefs.ttsModel, provider);
       if (!blob || runId !== ttsPlayIdRef.current) return;
       await playBlob(blob, ttsAudioRef);
     }
@@ -1105,9 +1106,10 @@ function TodayLessonPageInner() {
     stopSpeech();
     const runId = ttsPlayIdRef.current;
     const parts = splitForTts(payload);
+    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== ttsPlayIdRef.current) return;
-      const blob = await getCachedGoogleTtsBlob(part, 0.95, state.prefs.ttsModel);
+      const blob = await getCachedGoogleTtsBlob(part, 0.95, state.prefs.ttsModel, provider);
       if (!blob) {
         speakWeb(payload);
         return;
@@ -1119,7 +1121,7 @@ function TodayLessonPageInner() {
 
   const speak = async (payload: string) => {
     if (!payload) return;
-    if (state.prefs.ttsEngine === "google") {
+    if (state.prefs.ttsEngine !== "web") {
       try {
         await speakGoogle(payload);
         return;
@@ -1133,7 +1135,7 @@ function TodayLessonPageInner() {
 
   const speakWarmup = async (payload: string) => {
     if (!payload) return;
-    if (state.prefs.ttsEngine === "google") {
+    if (state.prefs.ttsEngine !== "web") {
       try {
         await speakGoogleCachedOnly(payload);
         return;
@@ -1355,8 +1357,9 @@ function TodayLessonPageInner() {
         speakingRate: 0.95,
         createdAt: new Date().toISOString()
       });
-      if (state.prefs.ttsEngine === "google") {
-        void preCacheTextSegments(correctedText, 0.95, state.prefs.ttsModel);
+      if (state.prefs.ttsEngine !== "web") {
+        const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
+        void preCacheTextSegments(correctedText, 0.95, state.prefs.ttsModel, provider);
       }
       setDay2CorrectionText(correctedText);
       setDay2Phase("review");
@@ -1548,8 +1551,9 @@ function TodayLessonPageInner() {
                             speakingRate: 0.95,
                             createdAt: new Date().toISOString()
                           });
-                          if (state.prefs.ttsEngine === "google") {
-                            void preCacheTextSegments(step2PasteText.trim(), 0.95, state.prefs.ttsModel);
+                          if (state.prefs.ttsEngine !== "web") {
+                            const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
+                            void preCacheTextSegments(step2PasteText.trim(), 0.95, state.prefs.ttsModel, provider);
                           }
                           finishStep();
                         }}

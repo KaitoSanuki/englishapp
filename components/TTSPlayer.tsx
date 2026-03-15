@@ -32,13 +32,14 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
     window.speechSynthesis.speak(u);
   };
 
-  const speakGoogle = async (payload: string) => {
+  const speakApi = async (payload: string) => {
     stopAll();
     const runId = playIdRef.current;
     const parts = splitForTts(payload);
+    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== playIdRef.current) return;
-      const blob = await getGoogleTtsBlob(part, speed, state.prefs.ttsModel);
+      const blob = await getGoogleTtsBlob(part, speed, state.prefs.ttsModel, provider);
       if (!blob || runId !== playIdRef.current) return;
       await playBlob(blob, audioRef);
     }
@@ -46,9 +47,9 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
 
   const speak = async (payload: string) => {
     if (!payload) return;
-    if (state.prefs.ttsEngine === "google") {
+    if (state.prefs.ttsEngine !== "web") {
       try {
-        await speakGoogle(payload);
+        await speakApi(payload);
         return;
       } catch {
         speakWeb(payload);
@@ -58,12 +59,17 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
     speakWeb(payload);
   };
 
+  const engineLabel =
+    state.prefs.ttsEngine === "google"
+      ? `Google TTS (${state.prefs.ttsModel})`
+      : state.prefs.ttsEngine === "elevenlabs"
+        ? "ElevenLabs"
+        : "Web Speech";
+
   return (
     <section className="glass rounded-xl2 p-4 space-y-3">
       <h3 className="text-base font-bold text-slate-900">{ja ? "読み上げ" : "TTS Player"}</h3>
-      <p className="text-xs text-slate-700">
-        {ja ? `エンジン: ${state.prefs.ttsEngine === "google" ? `Google TTS (${state.prefs.ttsModel})` : "Web Speech"}` : `Engine: ${state.prefs.ttsEngine === "google" ? `Google TTS (${state.prefs.ttsModel})` : "Web Speech"}`}
-      </p>
+      <p className="text-xs text-slate-700">{ja ? `エンジン: ${engineLabel}` : `Engine: ${engineLabel}`}</p>
       <div className="flex flex-wrap gap-2">
         {speeds.map((s) => (
           <button key={s} className={s === speed ? "btn-primary" : "btn-secondary"} onClick={() => setSpeed(s)}>
@@ -73,7 +79,7 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
       </div>
       <div className="flex gap-2">
         <button className="btn-primary" onClick={() => void speak(text)}>
-          {ja ? "全文再生" : "Play All"}
+          {ja ? "全文を再生" : "Play All"}
         </button>
         <button className="btn-secondary" onClick={() => window.speechSynthesis.pause()}>
           {ja ? "一時停止" : "Pause"}
@@ -92,4 +98,3 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
     </section>
   );
 }
-
