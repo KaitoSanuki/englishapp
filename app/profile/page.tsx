@@ -153,6 +153,7 @@ export default function ProfilePage() {
             ElevenLabs
           </button>
         </div>
+        <p className="text-xs text-slate-900">{ja ? "ElevenLabs は Pro プラン専用です。" : "ElevenLabs is available for Pro plan only."}</p>
       </section>
 
       {state.prefs.ttsEngine === "google" && (
