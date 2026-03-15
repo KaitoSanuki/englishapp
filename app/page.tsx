@@ -985,7 +985,7 @@ function TodayLessonPageInner() {
   const startNewTheme = () => {
     primeSpeech();
     stopSpeech();
-    setLessonFocusActive(true);
+    setLessonFocusActive(false);
     createNextWeek();
     setDayWrap(null);
     setStartCardDay(null);
@@ -1001,12 +1001,8 @@ function TodayLessonPageInner() {
   const day3ReferenceScripts = [latestScript?.enScript || "", latestRoleplay?.correctionText || ""].filter(Boolean);
   const step6 = step6Prompt(effectiveCefr, activeWeek.topicTitle, roleplayGoal, roleplayDuration, day3ReferenceScripts, state.language);
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
-  const hideProgress = !!dayWrap || startCardDay !== null;
-
-  useEffect(() => {
-    // Lesson focus mode: lock other tabs while a day lesson is in progress.
-    setLessonFocusActive(!dayWrap && startCardDay === null);
-  }, [dayWrap, setLessonFocusActive, startCardDay]);
+  const showDayStartCard = !dayWrap && (startCardDay !== null || !state.lessonFocusActive);
+  const hideProgress = !!dayWrap || showDayStartCard;
 
   const latestDay3Correction = day3CorrectionText.trim() || latestRoleplay?.correctionText || "";
   const readText =
@@ -1438,15 +1434,17 @@ function TodayLessonPageInner() {
           : hasAnyCompleted || !!lastAnswered;
 
   return (
-    <div className="h-[calc(100vh-112px)] flex flex-col gap-4 overflow-hidden">
-      <section className="glass rounded-xl2 p-4">
+    <div className="relative h-[calc(100vh-112px)] flex flex-col gap-4 overflow-hidden">
+      {state.lessonFocusActive && <div className="pointer-events-none fixed inset-0 z-30 bg-slate-900/35 backdrop-blur-sm" />}
+
+      <section className={`glass rounded-xl2 p-4 transition-all duration-200 ${state.lessonFocusActive ? "opacity-0 pointer-events-none h-0 overflow-hidden p-0" : ""}`}>
         <p className="text-xs text-slate-700">{t.title}</p>
         <h1 className="text-2xl font-black">{ja ? `${displayDay + 1}${t.day}` : `${t.day} ${displayDay + 1}`}</h1>
         <p className="text-sm text-slate-800">{t.oneByOne}</p>
         {replayMode && <p className="mt-1 text-xs font-semibold text-accent">{ja ? "やり直しモード" : "Redo Mode"}</p>}
       </section>
 
-      <section className="glass rounded-xl2 p-5 flex-1 flex flex-col justify-between overflow-auto">
+      <section className={`glass rounded-xl2 p-5 flex-1 flex flex-col justify-between overflow-auto ${state.lessonFocusActive ? "relative z-40 shadow-2xl ring-1 ring-white/70" : ""}`}>
         <div className="space-y-3">
           {!hideProgress && (
             <>
@@ -1483,9 +1481,9 @@ function TodayLessonPageInner() {
                   </button>
                 )}
               </div>
-            ) : startCardDay !== null ? (
+            ) : showDayStartCard ? (
               <div className="space-y-3">
-                <p className="font-semibold text-slate-900">{t.nextDayStart.replace("{d}", String(startCardDay + 1))}</p>
+                <p className="font-semibold text-slate-900">{t.nextDayStart.replace("{d}", String(displayDay + 1))}</p>
                 <button className="btn-primary w-full" onClick={startNextDay}>
                   {t.startNextDay}
                 </button>
@@ -2020,10 +2018,10 @@ function TodayLessonPageInner() {
 
         <div className="space-y-2 pt-3">
           <div className="flex gap-2">
-            <button className="btn-secondary flex-1" onClick={goBack} disabled={transitioning || !canGoBack}>
+            <button className="btn-secondary flex-1" onClick={goBack} disabled={transitioning || showDayStartCard || !canGoBack}>
               {t.back}
             </button>
-            <button className="btn-secondary flex-1" onClick={skip} disabled={transitioning || !!dayWrap || startCardDay !== null}>
+            <button className="btn-secondary flex-1" onClick={skip} disabled={transitioning || showDayStartCard || !!dayWrap || startCardDay !== null}>
               {t.skip}
             </button>
           </div>
