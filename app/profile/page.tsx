@@ -74,7 +74,8 @@ export default function ProfilePage() {
     }
   };
 
-  const canUseElevenLabs = auth.plan === "pro";
+  const canUseGoogleTts = auth.mode === "user";
+  const canUseElevenLabs = auth.mode === "user" && auth.plan === "pro";
 
   return (
     <div className="space-y-4">
@@ -142,7 +143,11 @@ export default function ProfilePage() {
           <button className={state.prefs.ttsEngine === "web" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("web")}>
             Web Speech
           </button>
-          <button className={state.prefs.ttsEngine === "google" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("google")}>
+          <button
+            className={state.prefs.ttsEngine === "google" ? "btn-primary" : "btn-secondary"}
+            onClick={() => setTtsEngine("google")}
+            disabled={!canUseGoogleTts}
+          >
             Google TTS
           </button>
           <button
@@ -154,6 +159,7 @@ export default function ProfilePage() {
           </button>
         </div>
         <p className="text-xs text-slate-900">{ja ? "ElevenLabs は Pro プラン専用です。" : "ElevenLabs is available for Pro plan only."}</p>
+        {auth.mode !== "user" && <p className="text-xs text-slate-900">{ja ? "ゲストは Web Speech のみ利用できます。" : "Guest mode supports Web Speech only."}</p>}
       </section>
 
       {state.prefs.ttsEngine === "google" && (

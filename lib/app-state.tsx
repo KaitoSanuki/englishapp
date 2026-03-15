@@ -189,6 +189,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
 
   useEffect(() => {
+    if (auth.mode === "guest" && state.prefs.ttsEngine !== "web") {
+      setState((prev) => ({ ...prev, prefs: { ...prev.prefs, ttsEngine: "web" } }));
+    }
+  }, [auth.mode, state.prefs.ttsEngine]);
+
+  useEffect(() => {
     if (!auth.enabled) return;
     const raw = localStorage.getItem(AUTH_KEY);
     if (!raw) return;
@@ -335,6 +341,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDefaultCefr: (cefr) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, defaultCefr: cefr } })),
     setTtsEngine: (engine) =>
       setState((prev) => {
+        if (auth.mode !== "user" && engine !== "web") return prev;
         if (engine === "elevenlabs" && auth.plan !== "pro") return prev;
         return { ...prev, prefs: { ...prev.prefs, ttsEngine: engine } };
       }),

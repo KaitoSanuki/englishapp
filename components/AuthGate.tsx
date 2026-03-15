@@ -39,6 +39,7 @@ export function AuthGate() {
   const ja = state.language === "ja";
 
   const [mode, setMode] = useState<Mode>("menu");
+  const [allowGuest, setAllowGuest] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -50,6 +51,10 @@ export function AuthGate() {
     const prev = prevAuthModeRef.current;
     if (prev === "guest" && auth.mode === "user" && !shouldSkipIntro()) {
       setShowIntro(true);
+    }
+    if (prev === "user" && auth.mode === "guest") {
+      setAllowGuest(false);
+      setMode("menu");
     }
     prevAuthModeRef.current = auth.mode;
   }, [auth.mode]);
@@ -90,11 +95,13 @@ export function AuthGate() {
     }
   };
 
+  const needsGate = auth.mode !== "user" && !allowGuest;
+
   return (
     <>
       <AppIntroModal open={showIntro} language={state.language} onClose={() => setShowIntro(false)} />
 
-      {auth.mode !== "user" && (
+      {needsGate && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
           <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-3">
             <h1 className="text-2xl font-black text-slate-900">{ja ? "English Loop へようこそ" : "Welcome to English Loop"}</h1>
@@ -113,6 +120,7 @@ export function AuthGate() {
                 <button
                   className="btn-secondary w-full"
                   onClick={() => {
+                    setAllowGuest(true);
                     openIntro();
                   }}
                 >
