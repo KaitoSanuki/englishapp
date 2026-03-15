@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
+import { AppIntroModal } from "@/components/AppIntroModal";
 
 const cefrs: CEFR[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
@@ -51,6 +52,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [showIntro, setShowIntro] = useState(false);
 
   const doSignIn = async () => {
     setMessage("");
@@ -66,7 +68,7 @@ export default function ProfilePage() {
     setMessage("");
     try {
       await signUp(email.trim(), password);
-      setMessage(ja ? "アカウントを作成してログインしました。" : "Account created and signed in.");
+      setMessage(ja ? "確認メールを送信しました。メール確認後にログインしてください。" : "Confirmation email sent. Confirm email, then sign in.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sign up failed.");
     }
@@ -76,6 +78,8 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-4">
+      <AppIntroModal open={showIntro} language={state.language} onClose={() => setShowIntro(false)} />
+
       <section className="glass rounded-xl2 p-4">
         <h1 className="text-xl font-black text-slate-900">{ja ? JA.title : "Profile / Help"}</h1>
         <p className="text-sm text-slate-900">{ja ? JA.desc : "Prompt-first workflow. API execution is out of scope in v0.x."}</p>
@@ -114,6 +118,9 @@ export default function ProfilePage() {
             </button>
           </div>
         )}
+        <button className="btn-secondary w-full" onClick={() => setShowIntro(true)}>
+          {ja ? "アプリ説明を見る" : "View App Intro"}
+        </button>
         {(message || auth.error) && <p className="text-xs text-slate-900">{message || auth.error}</p>}
       </section>
 

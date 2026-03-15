@@ -277,18 +277,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAuth((prev) => ({ ...prev, busy: true, error: undefined }));
     try {
       await supabaseSignUp(email, password);
-      const session = await supabaseSignIn(email, password);
-      localStorage.setItem(AUTH_KEY, JSON.stringify({ accessToken: session.access_token }));
-      setAuth({
-        enabled: true,
-        mode: "user",
-        userId: session.user.id,
-        email: session.user.email ?? email,
-        accessToken: session.access_token,
-        plan: "free",
-        busy: false
-      });
-      await loadCloudSnapshot(session.user.id, session.access_token);
+      try {
+        const session = await supabaseSignIn(email, password);
+        localStorage.setItem(AUTH_KEY, JSON.stringify({ accessToken: session.access_token }));
+        setAuth({
+          enabled: true,
+          mode: "user",
+          userId: session.user.id,
+          email: session.user.email ?? email,
+          accessToken: session.access_token,
+          plan: "free",
+          busy: false
+        });
+        await loadCloudSnapshot(session.user.id, session.access_token);
+        return;
+      } catch (signInError) {
+        const msg = signInError instanceof Error ? signInError.message : "";
+        if (msg.includes("email_not_confirmed") || msg.includes("Email not confirmed")) {
+          setAuth((prev) => ({ ...prev, busy: false, error: undefined }));
+          return;
+        }
+        throw signInError;
+      }
     } catch (error) {
       setAuth((prev) => ({
         ...prev,
