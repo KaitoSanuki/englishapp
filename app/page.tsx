@@ -56,6 +56,7 @@ const TX = {
     dayDoneTitle: "\u304a\u75b2\u308c\u3055\u307e\u3067\u3057\u305f\uff01",
     dayDoneBody: "\u4eca\u65e5\u306e\u30ec\u30c3\u30b9\u30f3\u306f\u3053\u3053\u307e\u3067\u3002",
     finishDay: "\u4eca\u65e5\u306e\u30ec\u30c3\u30b9\u30f3\u3092\u7d42\u3048\u308b",
+    interruptLesson: "\u30ec\u30c3\u30b9\u30f3\u3092\u4e2d\u65ad",
     nextDayStart: "\u6b21\u306f{d}\u65e5\u76ee\u30b9\u30bf\u30fc\u30c8\uff01",
     startNextDay: "\u6b21\u306e\u30ec\u30c3\u30b9\u30f3\u3092\u59cb\u3081\u308b",
     weekDoneTitle: "\u4eca\u9031\u306e\u30ec\u30c3\u30b9\u30f3\u5b8c\u4e86\uff01",
@@ -145,6 +146,7 @@ const TX = {
     dayDoneTitle: "Great work today!",
     dayDoneBody: "Today's lesson is complete.",
     finishDay: "Finish Today's Lesson",
+    interruptLesson: "Pause Lesson",
     nextDayStart: "Day {d} starts now!",
     startNextDay: "Start Next Lesson",
     weekDoneTitle: "Week lesson complete!",
@@ -989,6 +991,11 @@ function TodayLessonPageInner() {
     createNextWeek();
     setDayWrap(null);
     setStartCardDay(null);
+  };
+
+  const interruptLesson = () => {
+    stopSpeech();
+    setLessonFocusActive(false);
   };
 
   const step2 = step2Prompt(effectiveCefr, values.topic || activeWeek.topicTitle, state.language);
@@ -2017,6 +2024,11 @@ function TodayLessonPageInner() {
         </div>
 
         <div className="space-y-2 pt-3">
+          {state.lessonFocusActive && (
+            <button className="btn-secondary w-full" onClick={interruptLesson} disabled={transitioning || !!dayWrap}>
+              {t.interruptLesson}
+            </button>
+          )}
           <div className="flex gap-2">
             <button className="btn-secondary flex-1" onClick={goBack} disabled={transitioning || showDayStartCard || !canGoBack}>
               {t.back}

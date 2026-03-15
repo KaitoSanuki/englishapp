@@ -153,25 +153,21 @@ export default function ProfilePage() {
             ElevenLabs
           </button>
         </div>
-        <p className="text-xs text-slate-900">
-          {ja
-            ? "Googleは GOOGLE_TTS_CREDENTIALS_JSON、ElevenLabsは ELEVENLABS_API_KEY が必要です。ElevenLabsはProプラン限定です。"
-            : "Google requires GOOGLE_TTS_CREDENTIALS_JSON. ElevenLabs requires ELEVENLABS_API_KEY and is Pro-only."}
-        </p>
       </section>
 
-      <section className="glass rounded-xl2 p-4 space-y-3">
-        <h2 className="text-base font-bold text-slate-900">{ja ? JA.ttsModel : "Google Model"}</h2>
-        <div className="flex gap-2">
-          <button className={state.prefs.ttsModel === "standard" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsModel("standard")}>
-            Standard
-          </button>
-          <button className={state.prefs.ttsModel === "wavenet" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsModel("wavenet")}>
-            WaveNet
-          </button>
-        </div>
-        <p className="text-xs text-slate-900">{ja ? "Google TTS選択時のみ反映されます。" : "Applied only when Google TTS is selected."}</p>
-      </section>
+      {state.prefs.ttsEngine === "google" && (
+        <section className="glass rounded-xl2 p-4 space-y-3">
+          <h2 className="text-base font-bold text-slate-900">{ja ? JA.ttsModel : "Google Model"}</h2>
+          <div className="flex gap-2">
+            <button className={state.prefs.ttsModel === "standard" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsModel("standard")}>
+              Standard
+            </button>
+            <button className={state.prefs.ttsModel === "wavenet" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsModel("wavenet")}>
+              WaveNet
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="glass rounded-xl2 p-4 space-y-3">
         <h2 className="text-base font-bold text-slate-900">{ja ? JA.defaultCefr : "Default CEFR"}</h2>
