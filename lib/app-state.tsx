@@ -101,6 +101,8 @@ const AppStateContext = createContext<AppStateContextType | null>(null);
 const hydrateState = (input: Partial<AppState> | null | undefined): AppState => ({
   ...defaultState,
   ...(input ?? {}),
+  // Always start unlocked; lesson focus should begin only after pressing "start".
+  lessonFocusActive: false,
   prefs: {
     ...defaultState.prefs,
     ...(input?.prefs ?? {})

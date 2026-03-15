@@ -2025,11 +2025,7 @@ function TodayLessonPageInner() {
               {t.skip}
             </button>
           </div>
-          {state.lessonFocusActive ? (
-            <p className="w-full rounded-xl bg-slate-200 px-3 py-3 text-center text-sm font-semibold text-slate-600">
-              {ja ? "集中モード中：今日のレッスン終了まで他タブはロックされています" : "Focus mode: other tabs are locked until today's lesson ends."}
-            </p>
-          ) : (
+          {!state.lessonFocusActive && (
             <a href="/practice" className="btn-secondary w-full block text-center py-3">
               {t.openProgress}
             </a>
