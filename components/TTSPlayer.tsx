@@ -8,7 +8,7 @@ import { getGoogleTtsBlob, playBlob, splitForTts } from "@/lib/google-tts-client
 const speeds = [0.7, 0.85, 1.0, 1.1];
 
 export function TTSPlayer({ text, language }: { text: string; language: Language }) {
-  const { state } = useAppState();
+  const { state, auth } = useAppState();
   const [speed, setSpeed] = useState(1.0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playIdRef = useRef(0);
@@ -39,7 +39,7 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
     const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== playIdRef.current) return;
-      const blob = await getGoogleTtsBlob(part, speed, state.prefs.ttsModel, provider);
+      const blob = await getGoogleTtsBlob(part, speed, state.prefs.ttsModel, provider, auth.accessToken);
       if (!blob || runId !== playIdRef.current) return;
       await playBlob(blob, audioRef);
     }

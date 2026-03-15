@@ -17,6 +17,50 @@ const getClient = () => {
   return new textToSpeech.TextToSpeechClient({ credentials });
 };
 
+const getSupabaseConfig = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  return { supabaseUrl, anonKey };
+};
+
+const getBearerToken = (req: NextRequest) => {
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) return "";
+  return authHeader.slice("Bearer ".length).trim();
+};
+
+const getSupabaseUser = async (token: string) => {
+  const { supabaseUrl, anonKey } = getSupabaseConfig();
+  const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    method: "GET",
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { id?: string; email?: string };
+  if (!data.id) return null;
+  return data;
+};
+
+const getUserPlan = async (userId: string, token: string) => {
+  const { supabaseUrl, anonKey } = getSupabaseConfig();
+  const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=plan&limit=1`, {
+    method: "GET",
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!res.ok) return "free";
+  const rows = (await res.json()) as Array<{ plan?: "free" | "pro" }>;
+  return rows[0]?.plan ?? "free";
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as TtsBody;
@@ -29,9 +73,22 @@ export async function POST(req: NextRequest) {
     const provider = body.provider === "elevenlabs" ? "elevenlabs" : "google";
 
     if (provider === "elevenlabs") {
+      const token = getBearerToken(req);
+      if (!token) {
+        return NextResponse.json({ error: "ElevenLabs is available for Pro users only. Please sign in." }, { status: 401 });
+      }
+      const user = await getSupabaseUser(token);
+      if (!user?.id) {
+        return NextResponse.json({ error: "Invalid session token." }, { status: 401 });
+      }
+      const plan = await getUserPlan(user.id, token);
+      if (plan !== "pro") {
+        return NextResponse.json({ error: "ElevenLabs is available for Pro users only." }, { status: 403 });
+      }
+
       const apiKey = process.env.ELEVENLABS_API_KEY;
       const voiceId = process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
-      const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5";
+      const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2";
       if (!apiKey) {
         return NextResponse.json({ error: "Missing ELEVENLABS_API_KEY" }, { status: 500 });
       }

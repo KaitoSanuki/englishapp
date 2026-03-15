@@ -34,7 +34,13 @@ export const getCachedGoogleTtsBlob = async (text: string, speakingRate: number,
   return cached ? cached.blob() : null;
 };
 
-export const getGoogleTtsBlob = async (text: string, speakingRate: number, model: GoogleTtsModel, engine: TtsEngine = "google") => {
+export const getGoogleTtsBlob = async (
+  text: string,
+  speakingRate: number,
+  model: GoogleTtsModel,
+  engine: TtsEngine = "google",
+  accessToken?: string
+) => {
   const clean = text.trim();
   if (!clean) return null;
   const request = cacheRequest(clean, speakingRate, model, engine);
@@ -52,7 +58,10 @@ export const getGoogleTtsBlob = async (text: string, speakingRate: number, model
   const promise = (async () => {
     const res = await fetch("/api/tts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+      },
       body: JSON.stringify({ text: clean, speakingRate, model, provider: engine })
     });
     if (!res.ok) throw new Error(`${engine} TTS failed`);
@@ -89,9 +98,15 @@ export const playBlob = async (blob: Blob, audioRef: { current: HTMLAudioElement
   });
 };
 
-export const preCacheTextSegments = async (text: string, speakingRate: number, model: GoogleTtsModel, engine: TtsEngine = "google") => {
+export const preCacheTextSegments = async (
+  text: string,
+  speakingRate: number,
+  model: GoogleTtsModel,
+  engine: TtsEngine = "google",
+  accessToken?: string
+) => {
   const parts = splitForTts(text);
   for (const part of parts) {
-    await getGoogleTtsBlob(part, speakingRate, model, engine);
+    await getGoogleTtsBlob(part, speakingRate, model, engine, accessToken);
   }
 };

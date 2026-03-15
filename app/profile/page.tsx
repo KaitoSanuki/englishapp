@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
 
@@ -9,6 +10,7 @@ const JA = {
   title: "設定 / ヘルプ",
   desc: "Prompt-first運用。v0.xではAPI連携なし。",
   language: "表示言語",
+  auth: "アカウント",
   ttsEngine: "読み上げエンジン",
   ttsModel: "Google音声モデル",
   defaultCefr: "デフォルト CEFR",
@@ -43,15 +45,76 @@ const glossaryJa = [
 ];
 
 export default function ProfilePage() {
-  const { state, setLanguage, setDefaultCefr, setTtsEngine, setTtsModel } = useAppState();
+  const { state, auth, setLanguage, setDefaultCefr, setTtsEngine, setTtsModel, signIn, signUp, signOut, syncNow } = useAppState();
   const ja = state.language === "ja";
   const glossary = ja ? glossaryJa : glossaryEn;
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+
+  const doSignIn = async () => {
+    setMessage("");
+    try {
+      await signIn(email.trim(), password);
+      setMessage(ja ? "ログインしました。" : "Signed in.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sign in failed.");
+    }
+  };
+
+  const doSignUp = async () => {
+    setMessage("");
+    try {
+      await signUp(email.trim(), password);
+      setMessage(ja ? "アカウントを作成してログインしました。" : "Account created and signed in.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sign up failed.");
+    }
+  };
+
+  const canUseElevenLabs = auth.plan === "pro";
 
   return (
     <div className="space-y-4">
       <section className="glass rounded-xl2 p-4">
         <h1 className="text-xl font-black text-slate-900">{ja ? JA.title : "Profile / Help"}</h1>
         <p className="text-sm text-slate-900">{ja ? JA.desc : "Prompt-first workflow. API execution is out of scope in v0.x."}</p>
+      </section>
+
+      <section className="glass rounded-xl2 p-4 space-y-3">
+        <h2 className="text-base font-bold text-slate-900">{ja ? JA.auth : "Account"}</h2>
+        {!auth.enabled && <p className="text-sm text-rose-700">{ja ? "Supabaseの環境変数が未設定です。" : "Supabase env vars are missing."}</p>}
+        <p className="text-sm text-slate-900">
+          {auth.mode === "user"
+            ? `${ja ? "ログイン中" : "Signed in"}: ${auth.email || auth.userId} / Plan: ${auth.plan.toUpperCase()}`
+            : ja
+              ? "現在はゲストモードです。"
+              : "Currently in guest mode."}
+        </p>
+        {auth.mode !== "user" ? (
+          <div className="space-y-2">
+            <input className="input text-slate-900" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input className="input text-slate-900" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <div className="flex gap-2">
+              <button className="btn-primary" onClick={() => void doSignIn()} disabled={auth.busy || !email || !password}>
+                {ja ? "ログイン" : "Sign In"}
+              </button>
+              <button className="btn-secondary" onClick={() => void doSignUp()} disabled={auth.busy || !email || !password}>
+                {ja ? "新規登録" : "Sign Up"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => void syncNow()}>
+              {ja ? "今すぐ同期" : "Sync Now"}
+            </button>
+            <button className="btn-secondary" onClick={signOut}>
+              {ja ? "ログアウト" : "Sign Out"}
+            </button>
+          </div>
+        )}
+        {(message || auth.error) && <p className="text-xs text-slate-900">{message || auth.error}</p>}
       </section>
 
       <section className="glass rounded-xl2 p-4 space-y-3">
@@ -75,14 +138,18 @@ export default function ProfilePage() {
           <button className={state.prefs.ttsEngine === "google" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("google")}>
             Google TTS
           </button>
-          <button className={state.prefs.ttsEngine === "elevenlabs" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("elevenlabs")}>
+          <button
+            className={state.prefs.ttsEngine === "elevenlabs" ? "btn-primary" : "btn-secondary"}
+            onClick={() => setTtsEngine("elevenlabs")}
+            disabled={!canUseElevenLabs}
+          >
             ElevenLabs
           </button>
         </div>
         <p className="text-xs text-slate-900">
           {ja
-            ? "Googleは GOOGLE_TTS_CREDENTIALS_JSON、ElevenLabsは ELEVENLABS_API_KEY（任意で ELEVENLABS_VOICE_ID / ELEVENLABS_MODEL_ID）が必要です。"
-            : "Google needs GOOGLE_TTS_CREDENTIALS_JSON. ElevenLabs needs ELEVENLABS_API_KEY (optional: ELEVENLABS_VOICE_ID / ELEVENLABS_MODEL_ID)."}
+            ? "Googleは GOOGLE_TTS_CREDENTIALS_JSON、ElevenLabsは ELEVENLABS_API_KEY が必要です。ElevenLabsはProプラン限定です。"
+            : "Google requires GOOGLE_TTS_CREDENTIALS_JSON. ElevenLabs requires ELEVENLABS_API_KEY and is Pro-only."}
         </p>
       </section>
 

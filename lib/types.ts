@@ -66,6 +66,7 @@ export type AudioRecordItem = {
   weekId: string;
   type: "baseline" | "review" | "daily";
   blobUrl: string;
+  storagePath?: string;
   memo: string;
   createdAt: string;
 };

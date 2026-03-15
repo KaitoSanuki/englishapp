@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 import { Language } from "@/lib/types";
 
-export function Recorder({ onSave, language }: { onSave: (blobUrl: string) => void; language: Language }) {
+export function Recorder({ onSave, language }: { onSave: (blob: Blob, blobUrl: string) => Promise<void> | void; language: Language }) {
   const [recording, setRecording] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [saving, setSaving] = useState(false);
   const chunksRef = useRef<Blob[]>([]);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const mimeTypeRef = useRef("");
@@ -48,6 +50,7 @@ export function Recorder({ onSave, language }: { onSave: (blobUrl: string) => vo
       mr.onstop = () => {
         const blobType = mr.mimeType || mimeTypeRef.current || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: blobType });
+        setPreviewBlob(blob);
         setPreviewUrl(URL.createObjectURL(blob));
       };
       mr.start();
@@ -81,8 +84,20 @@ export function Recorder({ onSave, language }: { onSave: (blobUrl: string) => vo
       </div>
       {!!error && <p className="text-sm text-rose-600">{error}</p>}
       {previewUrl && <audio src={previewUrl} controls className="w-full" />}
-      <button className="btn-secondary" onClick={() => previewUrl && onSave(previewUrl)} disabled={!previewUrl}>
-        {ja ? "録音を保存" : "Save Recording"}
+      <button
+        className="btn-secondary"
+        onClick={async () => {
+          if (!previewUrl || !previewBlob || saving) return;
+          setSaving(true);
+          try {
+            await onSave(previewBlob, previewUrl);
+          } finally {
+            setSaving(false);
+          }
+        }}
+        disabled={!previewUrl || !previewBlob || saving}
+      >
+        {saving ? (ja ? "保存中..." : "Saving...") : ja ? "録音を保存" : "Save Recording"}
       </button>
     </section>
   );

@@ -5,7 +5,7 @@ import { useAppState } from "@/lib/app-state";
 import { getGoogleTtsBlob, playBlob, splitForTts } from "@/lib/google-tts-client";
 
 export default function MaterialsPage() {
-  const { state, activeWeek, setActiveWeek, toggleWeekFavorite } = useAppState();
+  const { state, auth, activeWeek, setActiveWeek, toggleWeekFavorite } = useAppState();
   const ja = state.language === "ja";
   const favoriteCount = state.weeks.filter((w) => w.isFavorite).length;
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -35,7 +35,7 @@ export default function MaterialsPage() {
     try {
       for (const part of splitForTts(text)) {
         if (runId !== playIdRef.current) return;
-        const blob = await getGoogleTtsBlob(part, rate, model, provider);
+        const blob = await getGoogleTtsBlob(part, rate, model, provider, auth.accessToken);
         if (!blob || runId !== playIdRef.current) return;
         await playBlob(blob, audioRef);
       }

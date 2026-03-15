@@ -7,6 +7,7 @@ import { CEFR } from "@/lib/types";
 import { step2Prompt, step6Prompt } from "@/lib/prompts";
 import { Recorder } from "@/components/Recorder";
 import { getCachedGoogleTtsBlob, getGoogleTtsBlob, playBlob, preCacheTextSegments, splitForTts } from "@/lib/google-tts-client";
+import { supabaseUploadAudio } from "@/lib/supabase-browser";
 
 type FieldType = "text" | "textarea" | "select" | "yesno";
 type FieldDef = {
@@ -571,6 +572,7 @@ const introCopyByTask: Record<string, IntroCopy> = {
 function TodayLessonPageInner() {
   const {
     state,
+    auth,
     activeWeek,
     saveTaskRun,
     saveWeek,
@@ -618,6 +620,7 @@ function TodayLessonPageInner() {
   const [day7SpeechRemaining, setDay7SpeechRemaining] = useState(60);
   const [day7Recording, setDay7Recording] = useState(false);
   const [day7PreviewUrl, setDay7PreviewUrl] = useState("");
+  const [day7PreviewBlob, setDay7PreviewBlob] = useState<Blob | null>(null);
   const [day7RecordError, setDay7RecordError] = useState("");
   const day7MediaRef = useRef<MediaRecorder | null>(null);
   const day7ChunksRef = useRef<Blob[]>([]);
@@ -701,6 +704,7 @@ function TodayLessonPageInner() {
     setDay7SpeechRemaining(60);
     setDay7Recording(false);
     setDay7PreviewUrl("");
+    setDay7PreviewBlob(null);
     setDay7RecordError("");
     setAutoReadKey("");
     setAutoReviewKey("");
@@ -1095,7 +1099,7 @@ function TodayLessonPageInner() {
     const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== ttsPlayIdRef.current) return;
-      const blob = await getGoogleTtsBlob(part, 0.95, state.prefs.ttsModel, provider);
+      const blob = await getGoogleTtsBlob(part, 0.95, state.prefs.ttsModel, provider, auth.accessToken);
       if (!blob || runId !== ttsPlayIdRef.current) return;
       await playBlob(blob, ttsAudioRef);
     }
@@ -1242,6 +1246,7 @@ function TodayLessonPageInner() {
       mr.onstop = () => {
         const blobType = mr.mimeType || day7MimeRef.current || "audio/webm";
         const blob = new Blob(day7ChunksRef.current, { type: blobType });
+        setDay7PreviewBlob(blob);
         const preview = URL.createObjectURL(blob);
         setDay7PreviewUrl(preview);
         setDay7Recording(false);
@@ -1263,6 +1268,39 @@ function TodayLessonPageInner() {
     day7MediaRef.current?.stream.getTracks().forEach((t) => t.stop());
     setDay7Recording(false);
     setDay7SpeechRunning(false);
+  };
+
+  const saveAudioRecord = async (args: { type: "baseline" | "review" | "daily"; blob: Blob; fallbackUrl: string; memo: string }) => {
+    const recordId = crypto.randomUUID();
+    let blobUrl = args.fallbackUrl;
+    let storagePath = "";
+
+    if (auth.mode === "user" && auth.userId && auth.accessToken) {
+      try {
+        const uploaded = await supabaseUploadAudio({
+          accessToken: auth.accessToken,
+          userId: auth.userId,
+          weekId: activeWeek.id,
+          type: args.type,
+          recordId,
+          blob: args.blob
+        });
+        blobUrl = uploaded.publicUrl;
+        storagePath = uploaded.path;
+      } catch {
+        // fall back to local preview URL
+      }
+    }
+
+    saveAudio({
+      id: recordId,
+      weekId: activeWeek.id,
+      type: args.type,
+      blobUrl,
+      storagePath: storagePath || undefined,
+      memo: args.memo,
+      createdAt: new Date().toISOString()
+    });
   };
 
   const countReading = () => {
@@ -1359,7 +1397,7 @@ function TodayLessonPageInner() {
       });
       if (state.prefs.ttsEngine !== "web") {
         const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
-        void preCacheTextSegments(correctedText, 0.95, state.prefs.ttsModel, provider);
+        void preCacheTextSegments(correctedText, 0.95, state.prefs.ttsModel, provider, auth.accessToken);
       }
       setDay2CorrectionText(correctedText);
       setDay2Phase("review");
@@ -1553,7 +1591,7 @@ function TodayLessonPageInner() {
                           });
                           if (state.prefs.ttsEngine !== "web") {
                             const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
-                            void preCacheTextSegments(step2PasteText.trim(), 0.95, state.prefs.ttsModel, provider);
+                            void preCacheTextSegments(step2PasteText.trim(), 0.95, state.prefs.ttsModel, provider, auth.accessToken);
                           }
                           finishStep();
                         }}
@@ -1679,14 +1717,12 @@ function TodayLessonPageInner() {
                     </section>
                     <Recorder
                       language={state.language}
-                      onSave={(blobUrl) => {
-                        saveAudio({
-                          id: crypto.randomUUID(),
-                          weekId: activeWeek.id,
+                      onSave={async (blob, blobUrl) => {
+                        await saveAudioRecord({
                           type: task.id === "record_baseline" ? "baseline" : "review",
-                          blobUrl,
-                          memo: "",
-                          createdAt: new Date().toISOString()
+                          blob,
+                          fallbackUrl: blobUrl,
+                          memo: ""
                         });
                         finishStep();
                       }}
@@ -1862,18 +1898,17 @@ function TodayLessonPageInner() {
                         <audio src={day7PreviewUrl} controls className="w-full" />
                         <button
                           className="btn-primary w-full"
-                          onClick={() => {
-                        saveAudio({
-                          id: crypto.randomUUID(),
-                          weekId: activeWeek.id,
-                          type: "review",
-                              blobUrl: day7PreviewUrl,
-                          memo: "day7_speech",
-                          createdAt: new Date().toISOString()
-                        });
-                        finishStep();
-                      }}
-                          disabled={!day7PreviewUrl}
+                          onClick={async () => {
+                            if (!day7PreviewBlob) return;
+                            await saveAudioRecord({
+                              type: "review",
+                              blob: day7PreviewBlob,
+                              fallbackUrl: day7PreviewUrl,
+                              memo: "day7_speech"
+                            });
+                            finishStep();
+                          }}
+                          disabled={!day7PreviewUrl || !day7PreviewBlob}
                         >
                           {ja ? "録音を保存して次へ" : "Save Recording and Continue"}
                         </button>
