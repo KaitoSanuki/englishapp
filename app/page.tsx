@@ -1167,10 +1167,10 @@ function TodayLessonPageInner() {
   useEffect(() => {
     if (transitioning || !!dayWrap || startCardDay !== null || showTaskIntro || current) return;
     if (!simpleReadTaskIds.includes(task.id)) return;
-    if (!sentences.length || sentenceStageDone) return;
-    const key = `${task.id}:sentence:${sentenceIndex}:${sentenceRepeatCount}`;
+    if (!sentences.length) return;
+    const key = sentenceStageDone ? `${task.id}:all:${allRepeatCount}` : `${task.id}:sentence:${sentenceIndex}:${sentenceRepeatCount}`;
     if (autoReadKey === key) return;
-    const text = sentences[sentenceIndex];
+    const text = sentenceStageDone ? readText : sentences[sentenceIndex];
     if (!text) return;
     const id = window.setTimeout(() => {
       setAutoReadKey(key);
@@ -1187,6 +1187,8 @@ function TodayLessonPageInner() {
     sentences,
     showTaskIntro,
     simpleReadTaskIds,
+    allRepeatCount,
+    readText,
     startCardDay,
     task.id,
     transitioning
