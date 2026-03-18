@@ -87,6 +87,7 @@ const TX = {
     retellStop: "\u3053\u306e\u30e9\u30a6\u30f3\u30c9\u3092\u6b62\u3081\u308b",
     retellNext: "\u6b21\u306e\u30e9\u30a6\u30f3\u30c9\u3078",
     retellRoundDone: "\u3053\u306e\u30e9\u30a6\u30f3\u30c9\u3092\u5b8c\u4e86",
+    retellRetry: "\u3082\u3046\u4e00\u5ea6\u30c1\u30e3\u30ec\u30f3\u30b8",
     aiRoundTitle: "AI\u30681\u5206\u4ed5\u4e0a\u3052",
     aiRoundBody: "AI\u306b\u30d0\u30c8\u30f3\u30bf\u30c3\u30c1\u3057\u307e\u3059\u3002\u4e0b\u306e\u30d7\u30ed\u30f3\u30d7\u30c8\u3092\u4f7f\u3063\u30661\u5206\u4ed5\u4e0a\u3052\u3057\u307e\u3059\u3002",
     aiTranscriptTitle: "AI\u3068\u306e\u4f1a\u8a71\u30ed\u30b0",
@@ -177,6 +178,7 @@ const TX = {
     retellStop: "Stop This Round",
     retellNext: "Next Round",
     retellRoundDone: "Complete This Round",
+    retellRetry: "Try This Round Again",
     aiRoundTitle: "Final 1-Minute AI Round",
     aiRoundBody: "Hand off to AI here. Use the prompt below for the final 1-minute retelling.",
     aiTranscriptTitle: "AI Conversation Log",
@@ -1022,6 +1024,11 @@ function TodayLessonPageInner() {
   const retellKeywords = extractKeywords(retellSourceText);
   const currentRetellRound = retellingRounds[retellRoundIndex];
   const retellElapsed = currentRetellRound ? currentRetellRound.seconds - retellRemaining : 0;
+  const canRetryRetellRound =
+    !!currentRetellRound &&
+    currentRetellRound.kind === "solo" &&
+    ["3-3", "2-2", "1-1"].includes(currentRetellRound.id) &&
+    retellElapsed > 0;
   const latestDay2Correction = latestRoleplay?.correctionText || "";
   const sentences = useMemo(() => splitSentences(readText), [readText]);
   const dialogueLines = useMemo(() => parseDialogue(latestDay3Correction), [latestDay3Correction]);
@@ -1424,6 +1431,12 @@ function TodayLessonPageInner() {
       return;
     }
     setRetellRoundIndex((v) => v + 1);
+  };
+
+  const retryRetellRound = () => {
+    if (!currentRetellRound || currentRetellRound.kind !== "solo") return;
+    setRetellRunning(false);
+    setRetellRemaining(currentRetellRound.seconds);
   };
 
   const canGoBack =
@@ -1885,6 +1898,11 @@ function TodayLessonPageInner() {
                                 {t.retellStop}
                               </button>
                             </div>
+                            {canRetryRetellRound && (
+                              <button className="btn-secondary w-full" onClick={retryRetellRound} disabled={retellRunning}>
+                                {t.retellRetry}
+                              </button>
+                            )}
                             <button className="btn-primary w-full" onClick={completeRetellRound} disabled={retellElapsed <= 0}>
                               {retellRoundIndex === retellingRounds.length - 1 ? t.retellRoundDone : t.retellNext}
                             </button>
