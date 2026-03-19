@@ -1111,12 +1111,11 @@ function TodayLessonPageInner() {
     window.speechSynthesis.speak(u);
   };
 
-  const speakGoogle = async (payload: string) => {
+  const speakApi = async (payload: string, provider: "google" | "elevenlabs") => {
     if (!payload) return;
     stopSpeech();
     const runId = ttsPlayIdRef.current;
     const parts = splitForTts(payload);
-    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== ttsPlayIdRef.current) return;
       const blob = await getGoogleTtsBlob(part, 0.95, state.prefs.ttsModel, provider, auth.accessToken);
@@ -1125,17 +1124,16 @@ function TodayLessonPageInner() {
     }
   };
 
-  const speakGoogleCachedOnly = async (payload: string) => {
+  const speakApiCachedOnly = async (payload: string, provider: "google" | "elevenlabs") => {
     if (!payload) return;
     stopSpeech();
     const runId = ttsPlayIdRef.current;
     const parts = splitForTts(payload);
-    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== ttsPlayIdRef.current) return;
       const blob = await getCachedGoogleTtsBlob(part, 0.95, state.prefs.ttsModel, provider);
       if (!blob) {
-        speakWeb(payload);
+        await speakApi(payload, provider);
         return;
       }
       if (runId !== ttsPlayIdRef.current) return;
@@ -1145,12 +1143,13 @@ function TodayLessonPageInner() {
 
   const speak = async (payload: string) => {
     if (!payload) return;
-    if (state.prefs.ttsEngine !== "web") {
+    const engine = state.prefs.ttsEngine;
+    if (engine !== "web") {
       try {
-        await speakGoogle(payload);
+        await speakApi(payload, engine === "elevenlabs" ? "elevenlabs" : "google");
         return;
-      } catch {
-        speakWeb(payload);
+      } catch (error) {
+        console.error("TTS playback failed", error);
         return;
       }
     }
@@ -1159,12 +1158,13 @@ function TodayLessonPageInner() {
 
   const speakWarmup = async (payload: string) => {
     if (!payload) return;
-    if (state.prefs.ttsEngine !== "web") {
+    const engine = state.prefs.ttsEngine;
+    if (engine !== "web") {
       try {
-        await speakGoogleCachedOnly(payload);
+        await speakApiCachedOnly(payload, engine === "elevenlabs" ? "elevenlabs" : "google");
         return;
-      } catch {
-        speakWeb(payload);
+      } catch (error) {
+        console.error("Warmup TTS playback failed", error);
         return;
       }
     }

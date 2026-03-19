@@ -32,11 +32,10 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
     window.speechSynthesis.speak(u);
   };
 
-  const speakApi = async (payload: string) => {
+  const speakApi = async (payload: string, provider: "google" | "elevenlabs") => {
     stopAll();
     const runId = playIdRef.current;
     const parts = splitForTts(payload);
-    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
     for (const part of parts) {
       if (runId !== playIdRef.current) return;
       const blob = await getGoogleTtsBlob(part, speed, state.prefs.ttsModel, provider, auth.accessToken);
@@ -47,12 +46,13 @@ export function TTSPlayer({ text, language }: { text: string; language: Language
 
   const speak = async (payload: string) => {
     if (!payload) return;
-    if (state.prefs.ttsEngine !== "web") {
+    const engine = state.prefs.ttsEngine;
+    if (engine !== "web") {
       try {
-        await speakApi(payload);
+        await speakApi(payload, engine === "elevenlabs" ? "elevenlabs" : "google");
         return;
-      } catch {
-        speakWeb(payload);
+      } catch (error) {
+        console.error("TTS player playback failed", error);
         return;
       }
     }
