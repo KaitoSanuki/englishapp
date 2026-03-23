@@ -67,15 +67,12 @@ export const step6Prompt = (
     "- Do not explicitly correct me during the roleplay",
     "- Do not guess or reveal details from the reference scripts before I say them myself",
     "- If my answer is unclear, too short, or broken, ask one short clarifying question instead of completing my sentence for me",
-    "- If my English is unnatural, use a light natural recast in your own reply, like how an adult speaks to a child naturally",
+    "- Only if my grammar is incorrect, use a light natural recast in your own reply, like how an adult speaks to a child naturally",
     "- Recast lightly: do not turn every user line into a fully polished answer",
     "- Do not take over my content or answer for me",
     "- Keep the conversation moving and help me reuse the reference scripts naturally",
     "- If I say something incorrect like a word choice or grammar mistake, respond naturally with the corrected form, but do not overexplain",
-    '- When I say "stop", output one final corrected dialogue with speaker labels in this format only:',
-    "AI: ...",
-    "User: ...",
-    "- The final corrected dialogue should be easy to read aloud as a roleplay script",
+    '- When I say "stop", end the conversation naturally and wait for my next instruction',
     "",
     "Start with the first line now."
   ].join("\n");
@@ -92,4 +89,19 @@ export const step7Prompt = (cefr: CEFR, transcript: string, _lang: "en" | "ja") 
     "",
     "Transcript:",
     transcript
+  ].join("\n");
+
+export const step7RoleplayPrompt = (cefr: CEFR, _lang: "en" | "ja") =>
+  [
+    "Based on the roleplay we just finished, create one final corrected dialogue.",
+    `Keep the English around CEFR ${cefr}.`,
+    "",
+    "Requirements:",
+    "- Use speaker labels in this format only:",
+    "AI: ...",
+    "User: ...",
+    "- Keep the dialogue natural and easy to read aloud",
+    "- Preserve the content I actually tried to say, but correct grammar and awkward phrasing",
+    "- Do not add explanations",
+    "- Output the final corrected dialogue only"
   ].join("\n");

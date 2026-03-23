@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
-import { step2Prompt, step6Prompt } from "@/lib/prompts";
+import { step2Prompt, step6Prompt, step7RoleplayPrompt } from "@/lib/prompts";
 import { Recorder } from "@/components/Recorder";
 import { getCachedGoogleTtsBlob, getGoogleTtsBlob, playBlob, preCacheTextSegments, splitForTts } from "@/lib/google-tts-client";
 import { supabaseUploadAudio } from "@/lib/supabase-browser";
@@ -1009,6 +1009,7 @@ function TodayLessonPageInner() {
     : t.day3Goal;
   const day3ReferenceScripts = [latestScript?.enScript || "", latestRoleplay?.correctionText || ""].filter(Boolean);
   const step6 = step6Prompt(effectiveCefr, activeWeek.topicTitle, roleplayGoal, roleplayDuration, day3ReferenceScripts, state.language);
+  const step7Roleplay = step7RoleplayPrompt(effectiveCefr, state.language);
   const displayDay = startCardDay ?? dayWrap?.fromDay ?? flowDay;
   const showDayStartCard = !dayWrap && (startCardDay !== null || !state.lessonFocusActive);
   const hideProgress = !!dayWrap || showDayStartCard;
@@ -1141,6 +1142,15 @@ function TodayLessonPageInner() {
     }
   };
 
+  const speakApiSingleChunk = async (payload: string, provider: "google" | "elevenlabs") => {
+    if (!payload) return;
+    stopSpeech();
+    const runId = ttsPlayIdRef.current;
+    const blob = await getGoogleTtsBlob(payload, 0.95, state.prefs.ttsModel, provider, auth.accessToken);
+    if (!blob || runId !== ttsPlayIdRef.current) return;
+    await playBlob(blob, ttsAudioRef);
+  };
+
   const speak = async (payload: string) => {
     if (!payload) return;
     const engine = state.prefs.ttsEngine;
@@ -1165,6 +1175,21 @@ function TodayLessonPageInner() {
         return;
       } catch (error) {
         console.error("Warmup TTS playback failed", error);
+        return;
+      }
+    }
+    speakWeb(payload);
+  };
+
+  const speakDialogueAi = async (payload: string) => {
+    if (!payload) return;
+    const engine = state.prefs.ttsEngine;
+    if (engine !== "web") {
+      try {
+        await speakApiSingleChunk(payload, engine === "elevenlabs" ? "elevenlabs" : "google");
+        return;
+      } catch (error) {
+        console.error("Dialogue TTS playback failed", error);
         return;
       }
     }
@@ -1375,7 +1400,7 @@ function TodayLessonPageInner() {
     if (currentDialogueKey === lastAutoplayKey) return;
     const id = window.setTimeout(() => {
       setLastAutoplayKey(currentDialogueKey);
-      speak(currentDialogueCard.ai);
+      void speakDialogueAi(currentDialogueCard.ai);
     }, 120);
     return () => {
       window.clearTimeout(id);
@@ -1702,7 +1727,7 @@ function TodayLessonPageInner() {
                               <div className="space-y-2">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">AI</p>
                                 <p className="text-sm text-slate-900">{currentDialogueCard.ai}</p>
-                                <button className="btn-secondary" onClick={() => speak(currentDialogueCard.ai)}>
+                                <button className="btn-secondary" onClick={() => void speakDialogueAi(currentDialogueCard.ai)}>
                                   {t.replayAi}
                                 </button>
                               </div>
@@ -2007,6 +2032,15 @@ function TodayLessonPageInner() {
                   <section className="glass rounded-xl2 p-4 space-y-3">
                     <p className="text-sm font-semibold text-slate-900">{t.stepExplainTitle}</p>
                     <p className="text-sm text-slate-800">{t.step7Explain}</p>
+                    <textarea className="input min-h-28 text-slate-900" value={step7Roleplay} readOnly />
+                    <button
+                      className="btn-secondary w-full"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(step7Roleplay);
+                      }}
+                    >
+                      {t.copyPrompt}
+                    </button>
                     <h3 className="text-base font-bold text-slate-900">{t.day3PasteTitle}</h3>
                     <textarea
                       className="input min-h-32 text-slate-900"
@@ -2022,7 +2056,7 @@ function TodayLessonPageInner() {
                         saveRoleplay({
                           id: crypto.randomUUID(),
                           weekId: activeWeek.id,
-                          promptText: step6,
+                          promptText: `${step6}\n\n---\n\n${step7Roleplay}`,
                           transcriptText: latestRoleplay?.transcriptText || "",
                           correctionText: corrected,
                           materialDialogueText: corrected,
