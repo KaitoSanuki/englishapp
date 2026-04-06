@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Language } from "@/lib/types";
 
-export const INTRO_SKIP_KEY = "englishapp_intro_skip_v1";
+export const INTRO_SKIP_KEY = "englishapp_intro_skip_v2";
 
 type IntroCard = {
   titleJa: string;
@@ -15,29 +15,29 @@ type IntroCard = {
 
 const INTRO_CARDS: IntroCard[] = [
   {
-    titleJa: "このアプリの目的",
-    bodyJa: "次に何をするか迷わず、1週間の英会話トレーニングを回せるようにします。",
+    titleJa: "このアプリでやること",
+    bodyJa: "1週間で1テーマを深めます。1分スピーチ、Oxford Phrase、Podcast、3-2-1リテリングを、迷わず順番どおり進めます。",
     titleEn: "What This App Does",
-    bodyEn: "It guides you through a weekly speaking cycle so you never wonder what to do next."
+    bodyEn: "You go deep on one theme per week through a guided flow: speech, Oxford phrases, podcast, and retelling."
   },
   {
     titleJa: "学習の進め方",
-    bodyJa: "Promptを使ってAIと練習し、台本・音読・録音・レビューを1つの流れで進めます。",
-    titleEn: "How You Train",
-    bodyEn: "Use prompts to practice with AI, then keep scripts, read-aloud, recording, and review in one flow."
+    bodyJa: "学習中はカードだけに集中します。色付け音読やオーバーラッピングで、聞く・読む・話すをつなげて練習します。",
+    titleEn: "How You Practice",
+    bodyEn: "During lessons, you focus on one card at a time. Listening, marking rhythm, and overlapping are connected in one flow."
   },
   {
-    titleJa: "元にしている動画",
-    bodyJa: "この動画の学習フローをアプリ化しています。必要ならここで確認できます。",
+    titleJa: "もとにしている動画",
+    bodyJa: "この動画で紹介されている学習フローを、毎日迷わず回せるようにアプリ化しています。必要なときにここで見返せます。",
     titleEn: "Base Learning Video",
-    bodyEn: "This app is based on the workflow in this video. Watch it here when needed.",
+    bodyEn: "This app is built around the study flow shown in this video. You can watch it again here whenever you want.",
     video: true
   },
   {
-    titleJa: "準備OKです",
-    bodyJa: "今日のレッスンタブに進んで、カードの案内に沿って進めてください。",
+    titleJa: "準備できました",
+    bodyJa: "「今日のレッスン」を開いて、その日のカードに沿って進めましょう。",
     titleEn: "You Are Ready",
-    bodyEn: "Open Today Lesson and follow each card."
+    bodyEn: "Open Today Lesson and follow the cards for the day."
   }
 ];
 
@@ -46,21 +46,16 @@ export const shouldSkipIntro = () => {
   return localStorage.getItem(INTRO_SKIP_KEY) === "1";
 };
 
-export function AppIntroModal({
-  open,
-  language,
-  onClose
-}: {
-  open: boolean;
-  language: Language;
-  onClose: () => void;
-}) {
+export function AppIntroModal({ open, language, onClose }: { open: boolean; language: Language; onClose: () => void }) {
   const ja = language === "ja";
   const [index, setIndex] = useState(0);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
-    if (open) setIndex(0);
+    if (open) {
+      setIndex(0);
+      setDontShowAgain(false);
+    }
   }, [open]);
 
   if (!open) return null;
@@ -110,7 +105,7 @@ export function AppIntroModal({
               if (index >= INTRO_CARDS.length - 1) {
                 finish();
               } else {
-                setIndex((v) => v + 1);
+                setIndex((value) => value + 1);
               }
             }}
           >
@@ -124,3 +119,4 @@ export function AppIntroModal({
     </div>
   );
 }
+

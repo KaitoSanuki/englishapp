@@ -1,143 +1,289 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useRef, useState } from "react";
 import { useAppState } from "@/lib/app-state";
-import { getGoogleTtsBlob, playBlob, splitForTts } from "@/lib/google-tts-client";
+import { phraseBank, cefrRank } from "@/lib/phrase-bank";
+import { getTokenStyle } from "@/lib/lesson-utils";
+import { getSpeechBlob, playBlob, stopAudio } from "@/lib/audio-client";
+import { CEFR, LessonSegment, PhraseCard, PodcastEpisode, SpeechMaterial } from "@/lib/types";
+
+const cefrs: Exclude<CEFR, "C2">[] = ["A1", "A2", "B1", "B2", "C1"];
+
+type MaterialTab = "speech" | "podcast" | "phrases";
+
+function SegmentText({ segment }: { segment: LessonSegment }) {
+  return (
+    <p className="text-sm leading-7 text-slate-900 whitespace-pre-wrap">
+      {segment.tokens.map((token) => {
+        const style = getTokenStyle(token.weight);
+        return (
+          <span key={token.id} style={style}>
+            {token.text}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
 
 export default function MaterialsPage() {
-  const { state, auth, activeWeek, setActiveWeek, toggleWeekFavorite } = useAppState();
+  const { state, activeWeek, setActiveWeek } = useAppState();
   const ja = state.language === "ja";
-  const favoriteCount = state.weeks.filter((w) => w.isFavorite).length;
+  const [tab, setTab] = useState<MaterialTab>("speech");
+  const [selectedPodcastId, setSelectedPodcastId] = useState<string | undefined>(activeWeek.podcasts[0]?.id);
+  const [selectedStamp, setSelectedStamp] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const playIdRef = useRef(0);
   const [playingKey, setPlayingKey] = useState("");
 
   const orderedWeeks = useMemo(
-    () => [...state.weeks].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()),
+    () => [...state.weeks].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [state.weeks]
   );
 
-  const stopPlayback = () => {
-    playIdRef.current += 1;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+  const selectedPodcast = activeWeek.podcasts.find((episode) => episode.id === selectedPodcastId) ?? activeWeek.podcasts[0];
+
+  const playText = async (key: string, text: string, voice: string) => {
+    if (!text.trim()) return;
+    stopAudio(audioRef);
+    setPlayingKey(key);
+    try {
+      const blob = await getSpeechBlob(text, voice);
+      if (!blob) return;
+      await playBlob(blob, audioRef);
+    } finally {
+      setPlayingKey("");
     }
-    setPlayingKey("");
   };
 
-  const playMaterialAudio = async (key: string, text: string, model: "standard" | "wavenet", rate: number) => {
-    if (!text.trim()) return;
-    stopPlayback();
-    const runId = playIdRef.current;
-    setPlayingKey(key);
-    const provider = state.prefs.ttsEngine === "elevenlabs" ? "elevenlabs" : "google";
+  const playPodcastEpisode = async (episode: PodcastEpisode) => {
+    stopAudio(audioRef);
+    setPlayingKey(`podcast:${episode.id}`);
     try {
-      for (const part of splitForTts(text)) {
-        if (runId !== playIdRef.current) return;
-        const blob = await getGoogleTtsBlob(part, rate, model, provider, auth.accessToken);
-        if (!blob || runId !== playIdRef.current) return;
+      for (const turn of episode.turns) {
+        const blob = await getSpeechBlob(turn.text, turn.voice);
+        if (!blob) return;
         await playBlob(blob, audioRef);
       }
     } finally {
-      if (runId === playIdRef.current) setPlayingKey("");
+      setPlayingKey("");
     }
   };
 
+  const phraseHistory = useMemo(() => {
+    const map = new Map<string, PhraseCard[]>();
+    for (const week of state.weeks) {
+      for (const set of week.phraseSets) {
+        for (const card of set.cards) {
+          const current = map.get(card.bankId) ?? [];
+          current.push(card);
+          map.set(card.bankId, current);
+        }
+      }
+    }
+    return map;
+  }, [state.weeks]);
+
+  const currentCefrLimit = activeWeek.cefr === "C2" ? "C1" : activeWeek.cefr;
+
   return (
     <div className="space-y-4">
-      <section className="glass rounded-xl2 p-4">
+      <section className="glass rounded-xl2 p-4 space-y-2">
         <h1 className="text-xl font-black text-slate-900">{ja ? "教材" : "Materials"}</h1>
-        <p className="text-sm text-slate-900">{ja ? "テーマごとの台本・教材音声・録音を見返せます（最新10件 + お気に入り）。" : "Review scripts, model audios, and recordings by theme (latest 10 + favorites)."}</p>
+        <p className="text-sm text-slate-700">
+          {ja ? "1分スピーチ・Podcast・Oxford Phrase をいつでも見返せます。" : "Review your weekly speech, podcasts, and Oxford Phrase cards anytime."}
+        </p>
       </section>
 
-      {orderedWeeks.map((week) => {
-        const day1Script = [...state.scripts]
-          .filter((s) => s.weekId === week.id)
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
-        const day2Script = [...state.roleplays]
-          .filter((r) => r.weekId === week.id)
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
-        const audios = [...state.audioRecords].filter((a) => a.weekId === week.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        const materialDay1 = state.materialAudios.find((m) => m.weekId === week.id && m.kind === "day1_full");
-        const materialDay2 = state.materialAudios.find((m) => m.weekId === week.id && m.kind === "day2_full");
+      <section className="glass rounded-xl2 p-4 space-y-3">
+        <h2 className="text-base font-bold text-slate-900">{ja ? "週を選ぶ" : "Choose Week"}</h2>
+        <div className="flex flex-wrap gap-2">
+          {orderedWeeks.map((week) => (
+            <button key={week.id} className={week.id === activeWeek.id ? "btn-primary" : "btn-secondary"} onClick={() => setActiveWeek(week.id)}>
+              {week.theme || (ja ? "未設定テーマ" : "Untitled Theme")}
+            </button>
+          ))}
+        </div>
+      </section>
 
-        return (
-          <section key={week.id} className={`glass rounded-xl2 p-4 space-y-3 ${week.id === activeWeek.id ? "ring-2 ring-accent/40" : ""}`}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">{week.topicTitle}</h2>
-                <p className="text-xs text-slate-700">
-                  {week.startDate} / CEFR {week.cefr}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button className="btn-secondary" onClick={() => setActiveWeek(week.id)}>
-                  {ja ? "開く" : "Open"}
-                </button>
-                <button className="btn-secondary" onClick={() => toggleWeekFavorite(week.id)} disabled={!week.isFavorite && favoriteCount >= 9}>
-                  {week.isFavorite ? (ja ? "★ お気に入り" : "★ Favorite") : ja ? "☆ お気に入り" : "☆ Favorite"}
-                </button>
-              </div>
-            </div>
+      <section className="glass rounded-xl2 p-4 space-y-3">
+        <div className="flex gap-2">
+          {([
+            ["speech", ja ? "1分スピーチ" : "Speech"],
+            ["podcast", "Podcast"],
+            ["phrases", "Oxford Phrase"]
+          ] as const).map(([value, label]) => (
+            <button key={value} className={tab === value ? "btn-primary" : "btn-secondary"} onClick={() => setTab(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
 
-            <article className="input">
-              <p className="text-xs font-semibold text-slate-700">{ja ? "1日目 台本" : "Day 1 Script"}</p>
-              <p className="text-sm text-slate-900 whitespace-pre-wrap">{day1Script?.enScript || (ja ? "まだありません。" : "No data yet.")}</p>
-            </article>
-
-            <article className="input">
-              <p className="text-xs font-semibold text-slate-700">{ja ? "2日目 添削台本" : "Day 2 Corrected Script"}</p>
-              <p className="text-sm text-slate-900 whitespace-pre-wrap">{day2Script?.correctionText || (ja ? "まだありません。" : "No data yet.")}</p>
-            </article>
-
-            <article className="space-y-2">
-              <p className="text-xs font-semibold text-slate-700">{ja ? "教材音声（全文）" : "Model Audio (Full Script)"}</p>
-              <div className="input space-y-2">
-                <p className="text-sm text-slate-900">{ja ? "1日目台本 音声" : "Day 1 script audio"}</p>
-                {materialDay1 ? (
-                  <button className="btn-secondary" onClick={() => void playMaterialAudio(`${week.id}:day1`, materialDay1.text, materialDay1.model, materialDay1.speakingRate)}>
-                    {playingKey === `${week.id}:day1` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
-                  </button>
-                ) : (
-                  <p className="text-sm text-slate-700">{ja ? "まだ保存されていません。" : "Not saved yet."}</p>
-                )}
-              </div>
-              <div className="input space-y-2">
-                <p className="text-sm text-slate-900">{ja ? "2日目台本 音声" : "Day 2 script audio"}</p>
-                {materialDay2 ? (
-                  <button className="btn-secondary" onClick={() => void playMaterialAudio(`${week.id}:day2`, materialDay2.text, materialDay2.model, materialDay2.speakingRate)}>
-                    {playingKey === `${week.id}:day2` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
-                  </button>
-                ) : (
-                  <p className="text-sm text-slate-700">{ja ? "まだ保存されていません。" : "Not saved yet."}</p>
-                )}
-              </div>
-              {playingKey && (
-                <button className="btn-secondary" onClick={stopPlayback}>
-                  {ja ? "停止" : "Stop"}
-                </button>
-              )}
-            </article>
-
-            <article className="space-y-2">
-              <p className="text-xs font-semibold text-slate-700">{ja ? "録音" : "Recordings"}</p>
-              {audios.length ? (
-                audios.map((audio) => (
-                  <div key={audio.id} className="input space-y-1">
-                    <p className="text-xs text-slate-700">
-                      {audio.type} / {new Date(audio.createdAt).toLocaleString()}
-                    </p>
-                    <audio controls src={audio.blobUrl} className="w-full" />
+        {tab === "speech" && (
+          <div className="space-y-3">
+            {activeWeek.speech ? (
+              <>
+                <article className="input space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">{ja ? "テーマ" : "Theme"}</p>
+                  <p className="text-base font-bold text-slate-900">{activeWeek.speech.theme}</p>
+                  <p className="text-xs font-semibold text-slate-700">CEFR {activeWeek.speech.cefr}</p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{activeWeek.speech.note}</p>
+                </article>
+                <article className="space-y-2">
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-secondary"
+                      onClick={() =>
+                        void playText(
+                          "speech:full",
+                          activeWeek.speech?.segments.map((segment) => segment.text).join(" ") ?? "",
+                          activeWeek.speech?.segments[0]?.voice ?? activeWeek.podcastUserVoice
+                        )
+                      }
+                    >
+                      {playingKey === "speech:full" ? (ja ? "再生中..." : "Playing...") : ja ? "全文を再生" : "Play Full Script"}
+                    </button>
+                    <button className="btn-secondary" onClick={() => stopAudio(audioRef)}>
+                      {ja ? "停止" : "Stop"}
+                    </button>
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-900">{ja ? "まだありません。" : "No data yet."}</p>
-              )}
-            </article>
-          </section>
-        );
-      })}
+                  {activeWeek.speech.segments.map((segment, index) => (
+                    <div key={segment.id} className="input space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-slate-700">{ja ? `文 ${index + 1}` : `Sentence ${index + 1}`}</p>
+                        <button className="btn-secondary" onClick={() => void playText(`speech:${segment.id}`, segment.text, segment.voice)}>
+                          {playingKey === `speech:${segment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+                        </button>
+                      </div>
+                      <SegmentText segment={segment} />
+                    </div>
+                  ))}
+                </article>
+              </>
+            ) : (
+              <p className="text-sm text-slate-700">{ja ? "まだ1分スピーチは生成されていません。" : "The 1-minute speech has not been generated yet."}</p>
+            )}
+          </div>
+        )}
+
+        {tab === "podcast" && (
+          <div className="space-y-3">
+            {activeWeek.podcasts.length ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {activeWeek.podcasts
+                    .slice()
+                    .sort((a, b) => a.dayIndex - b.dayIndex)
+                    .map((episode) => (
+                      <button
+                        key={episode.id}
+                        className={selectedPodcast?.id === episode.id ? "btn-primary" : "btn-secondary"}
+                        onClick={() => setSelectedPodcastId(episode.id)}
+                      >
+                        {ja ? `${episode.dayIndex}日目` : `Day ${episode.dayIndex}`}
+                      </button>
+                    ))}
+                </div>
+                {selectedPodcast && (
+                  <article className="space-y-3">
+                    <div className="input space-y-1">
+                      <p className="text-xs font-semibold text-slate-700">{ja ? `Day ${selectedPodcast.dayIndex}` : `Day ${selectedPodcast.dayIndex}`}</p>
+                      <h3 className="text-lg font-bold text-slate-900">{selectedPodcast.title}</h3>
+                      <p className="text-sm text-slate-600">{selectedPodcast.wordCount} words</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn-secondary" onClick={() => void playPodcastEpisode(selectedPodcast)}>
+                        {playingKey === `podcast:${selectedPodcast.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "通しで再生" : "Play Episode"}
+                      </button>
+                      <button className="btn-secondary" onClick={() => stopAudio(audioRef)}>
+                        {ja ? "停止" : "Stop"}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedPodcast.turns.map((turn, index) => (
+                        <div key={turn.id} className="input space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-slate-700">
+                              {turn.speaker} {index + 1}
+                            </p>
+                            <button className="btn-secondary" onClick={() => void playText(`turn:${turn.id}`, turn.text, turn.voice)}>
+                              {playingKey === `turn:${turn.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+                            </button>
+                          </div>
+                          <p className="text-sm text-slate-900 whitespace-pre-wrap">{turn.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-slate-700">{ja ? "まだPodcastは生成されていません。" : "No podcast has been generated yet."}</p>
+            )}
+          </div>
+        )}
+
+        {tab === "phrases" && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-700">
+              {ja
+                ? "押されたスタンプをタップすると、そのフレーズの過去カードを見返せます。"
+                : "Tap a stamped phrase to review its past personalized cards."}
+            </p>
+            {cefrs.map((cefr) => {
+              const bankItems = phraseBank.filter((item) => item.cefr === cefr);
+              const locked = cefrRank[cefr] > cefrRank[currentCefrLimit];
+              return (
+                <article key={cefr} className="space-y-2 rounded-2xl border border-slate-200 bg-white/70 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base font-bold text-slate-900">{cefr}</h3>
+                    {locked && <span className="text-xs font-semibold text-slate-500">{ja ? "ロック中" : "Locked"}</span>}
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
+                    {bankItems.map((item) => {
+                      const used = phraseHistory.get(item.id)?.length ?? 0;
+                      return (
+                        <button
+                          key={item.id}
+                          className={`rounded-full border px-2 py-3 text-xs font-semibold ${
+                            used > 0 ? "border-accent bg-accent/10 text-accent" : locked ? "border-slate-200 bg-slate-100 text-slate-400" : "border-slate-300 bg-white text-slate-500"
+                          }`}
+                          disabled={used === 0}
+                          onClick={() => setSelectedStamp(item.id)}
+                        >
+                          {used > 0 ? used : "-"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+            {selectedStamp && (
+              <article className="rounded-2xl border border-slate-200 bg-white/80 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-bold text-slate-900">{ja ? "過去カード" : "Past Cards"}</h3>
+                  <button className="btn-secondary" onClick={() => setSelectedStamp(null)}>
+                    {ja ? "閉じる" : "Close"}
+                  </button>
+                </div>
+                {(phraseHistory.get(selectedStamp) ?? []).map((card) => (
+                  <div key={card.id} className="input space-y-2">
+                    <p className="text-xs text-slate-500">{card.cefr} / Day {card.dayIndex} / cycle {card.cycle}</p>
+                    <p className="text-xs text-slate-500">{card.original}</p>
+                    <p className="text-base font-bold text-slate-900">{card.personalized}</p>
+                    <p className="text-sm text-slate-700">{card.translation}</p>
+                    <SegmentText segment={card.segment} />
+                    <button className="btn-secondary" onClick={() => void playText(`phrase:${card.id}`, card.segment.text, card.segment.voice)}>
+                      {playingKey === `phrase:${card.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+                    </button>
+                  </div>
+                ))}
+              </article>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
+

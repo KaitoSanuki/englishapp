@@ -1,13 +1,28 @@
-"use client";
+﻿"use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, AudioRecordItem, Language, MaterialAudioItem, RetellingItem, RoleplayItem, ScriptItem, TaskRun, WeekPlan } from "@/lib/types";
+import {
+  AppState,
+  CEFR,
+  DebugTrace,
+  ExternalChatPrompt,
+  GenerationJob,
+  GuestTrialState,
+  Language,
+  LessonSession,
+  PhraseSet,
+  PodcastEpisode,
+  PodcastVoiceGender,
+  RetellingSession,
+  SpeechMaterial,
+  UserPlan,
+  UserRole,
+  WeekRecord
+} from "@/lib/types";
+import { createEmptyDayStatuses, guestSampleDays, makeMonday } from "@/lib/lesson-utils";
+import { allOpenAiVoices, openAiVoices } from "@/lib/openai-voices";
 import { isSupabaseEnabled, supabaseGetPlan, supabaseGetUser, supabaseLoadSnapshot, supabaseSaveSnapshot, supabaseSignIn, supabaseSignUp } from "@/lib/supabase-browser";
 
-const STORAGE_KEY = "englishapp_state_v02";
-const AUTH_KEY = "englishapp_auth_v01";
-
-type UserPlan = "free" | "pro";
 type AuthState = {
   enabled: boolean;
   mode: "guest" | "user";
@@ -15,29 +30,39 @@ type AuthState = {
   email?: string;
   accessToken?: string;
   plan: UserPlan;
+  role: UserRole;
   busy: boolean;
   error?: string;
 };
 
-const monday = () => {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const result = new Date(now);
-  result.setDate(now.getDate() + diff);
-  return result.toISOString().slice(0, 10);
-};
+const STORAGE_KEY = "englishapp_state_v1_api";
+const AUTH_KEY = "englishapp_auth_v01";
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
 
-const defaultWeek: WeekPlan = {
+const choose = <T,>(items: readonly T[]) => items[Math.floor(Math.random() * items.length)] ?? items[0];
+
+const buildWeek = (): WeekRecord => ({
   id: crypto.randomUUID(),
-  startDate: monday(),
-  topicTitle: "Self introduction",
-  goal: "Talk about work and hobbies for 3 turns",
+  startDate: makeMonday(),
+  theme: "",
+  note: "",
   cefr: "A2",
-  descriptionJp: "Talk about name, work, and hobbies in 60 seconds",
-  streak: 1,
-  isFavorite: false,
+  status: "active",
+  phraseSets: [],
+  podcasts: [],
+  retellings: [],
+  externalPrompts: [],
+  dayStatuses: createEmptyDayStatuses(),
+  podcastPartnerVoice: choose(allOpenAiVoices),
+  podcastUserVoice: choose(openAiVoices.female),
   createdAt: new Date().toISOString()
+});
+
+const defaultGuestTrial: GuestTrialState = {
+  completedDayIndices: []
 };
 
 const defaultState: AppState = {
@@ -45,51 +70,58 @@ const defaultState: AppState = {
   lessonFocusActive: false,
   prefs: {
     defaultCefr: "A2",
-    ttsEngine: "web",
-    ttsModel: "standard"
+    podcastUserGender: "female",
+    adminDebugEnabled: false
   },
-  wizardAnswers: {},
-  weeks: [defaultWeek],
-  activeWeekId: defaultWeek.id,
-  taskRuns: [],
-  scripts: [],
-  roleplays: [],
-  retellings: [],
-  audioRecords: [],
-  materialAudios: [],
-  reviewMemo: ""
+  weeks: [buildWeek()],
+  activeWeekId: undefined,
+  lessonSession: undefined,
+  currentJob: undefined,
+  phraseUsage: {},
+  guestTrial: defaultGuestTrial,
+  debugTraces: []
 };
 
-const defaultAuth: AuthState = {
-  enabled: isSupabaseEnabled(),
-  mode: "guest",
-  plan: "free",
-  busy: false
-};
+const toLocalSnapshot = (input: AppState): AppState => ({
+  ...input,
+  lessonFocusActive: false,
+  currentJob: undefined,
+  debugTraces: []
+});
+
+const toCloudSnapshot = (input: AppState): AppState => ({
+  ...toLocalSnapshot(input),
+  lessonSession: undefined
+});
 
 type AppStateContextType = {
   state: AppState;
-  activeWeek: WeekPlan;
   auth: AuthState;
+  activeWeek: WeekRecord;
+  canUseAdminMode: boolean;
+  setLanguage: (language: Language) => void;
+  setDefaultCefr: (cefr: CEFR) => void;
+  setPodcastUserGender: (gender: PodcastVoiceGender) => void;
+  setAdminDebugEnabled: (enabled: boolean) => void;
   setLessonFocusActive: (active: boolean) => void;
-  setLanguage: (lang: Language) => void;
-  setDefaultCefr: (cefr: WeekPlan["cefr"]) => void;
-  setTtsEngine: (engine: "web" | "google" | "elevenlabs") => void;
-  setTtsModel: (model: "standard" | "wavenet") => void;
-  setWizardAnswer: (key: string, value: string) => void;
-  resetWeekData: (weekId: string) => void;
-  undoLastCompletedTask: (weekId: string) => void;
-  saveWeek: (week: WeekPlan) => void;
-  setActiveWeek: (weekId: string) => void;
-  saveTaskRun: (task: TaskRun) => void;
-  saveScript: (script: ScriptItem) => void;
-  saveRoleplay: (item: RoleplayItem) => void;
-  saveRetelling: (item: RetellingItem) => void;
-  saveAudio: (item: AudioRecordItem) => void;
-  saveMaterialAudio: (item: MaterialAudioItem) => void;
-  setReviewMemo: (memo: string) => void;
+  setLessonSession: (session?: LessonSession) => void;
+  setCurrentJob: (job?: GenerationJob) => void;
+  saveWeekMeta: (input: Pick<WeekRecord, "theme" | "note" | "cefr">) => void;
+  replaceWeek: (week: WeekRecord) => void;
   createNextWeek: () => void;
-  toggleWeekFavorite: (weekId: string) => void;
+  setActiveWeek: (weekId: string) => void;
+  saveSpeech: (speech: SpeechMaterial) => void;
+  savePhraseSet: (phraseSet: PhraseSet) => void;
+  savePodcast: (episode: PodcastEpisode) => void;
+  saveRetelling: (retelling: RetellingSession) => void;
+  saveExternalPrompt: (prompt: ExternalChatPrompt) => void;
+  markTaskComplete: (dayIndex: number, task: keyof WeekRecord["dayStatuses"][number]["tasks"]) => void;
+  completeDay: (dayIndex: number) => void;
+  resetActiveWeek: () => void;
+  incrementPhraseUsage: (phraseIds: string[]) => void;
+  addDebugTrace: (trace: DebugTrace) => void;
+  clearDebugTraces: () => void;
+  markGuestTrialDay: (dayIndex: number) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => void;
@@ -98,23 +130,37 @@ type AppStateContextType = {
 
 const AppStateContext = createContext<AppStateContextType | null>(null);
 
-const hydrateState = (input: Partial<AppState> | null | undefined): AppState => ({
-  ...defaultState,
-  ...(input ?? {}),
-  // Always start unlocked; lesson focus should begin only after pressing "start".
-  lessonFocusActive: false,
-  prefs: {
-    ...defaultState.prefs,
-    ...(input?.prefs ?? {})
-  },
-  wizardAnswers: input?.wizardAnswers ?? {},
-  language: (input?.language === "en" ? "en" : "ja") as Language,
-  weeks: (input?.weeks ?? defaultState.weeks).map((w) => ({
-    ...w,
-    isFavorite: !!w.isFavorite,
-    createdAt: w.createdAt ?? w.startDate
-  }))
-});
+const hydrateState = (input?: Partial<AppState> | null): AppState => {
+  const weeks = input?.weeks?.length ? input.weeks : [buildWeek()];
+  const activeWeekId = input?.activeWeekId && weeks.some((week) => week.id === input.activeWeekId) ? input.activeWeekId : weeks[0]?.id;
+  return {
+    ...defaultState,
+    ...(input ?? {}),
+    language: input?.language === "en" ? "en" : "ja",
+    lessonFocusActive: false,
+    prefs: {
+      ...defaultState.prefs,
+      ...(input?.prefs ?? {})
+    },
+    weeks,
+    activeWeekId,
+    lessonSession: input?.lessonSession,
+    currentJob: undefined,
+    phraseUsage: input?.phraseUsage ?? {},
+    guestTrial: input?.guestTrial ?? defaultGuestTrial,
+    debugTraces: []
+  };
+};
+
+const defaultAuth: AuthState = {
+  enabled: isSupabaseEnabled(),
+  mode: "guest",
+  plan: "free",
+  role: "user",
+  busy: false
+};
+
+const getRoleFromEmail = (email?: string | null): UserRole => (email && ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "user");
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(defaultState);
@@ -123,76 +169,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const syncTimerRef = useRef<number | null>(null);
   const lastSyncedRef = useRef("");
 
-  const pruneStateByWeeks = (next: AppState) => {
-    const favorites = next.weeks.filter((w) => w.isFavorite).sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-    const favored = favorites.slice(0, 9);
-    const favoredIds = new Set(favored.map((w) => w.id));
-    const nonFav = next.weeks
-      .filter((w) => !favoredIds.has(w.id))
-      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-    const keptNonFav = nonFav.slice(0, 10);
-    const keptWeeks = [...favored, ...keptNonFav].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-    const keepIds = new Set(keptWeeks.map((w) => w.id));
-    const cleanAnswers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(next.wizardAnswers)) {
-      const weekId = k.split(":")[0];
-      if (keepIds.has(weekId)) cleanAnswers[k] = v;
-    }
-    const nextActiveWeekId = next.activeWeekId && keepIds.has(next.activeWeekId) ? next.activeWeekId : keptWeeks[0]?.id;
-    return {
-      ...next,
-      activeWeekId: nextActiveWeekId,
-      weeks: keptWeeks.map((w) => ({ ...w, isFavorite: favoredIds.has(w.id) })),
-      wizardAnswers: cleanAnswers,
-      taskRuns: next.taskRuns.filter((x) => keepIds.has(x.weekId)),
-      scripts: next.scripts.filter((x) => keepIds.has(x.weekId)),
-      roleplays: next.roleplays.filter((x) => keepIds.has(x.weekId)),
-      retellings: next.retellings.filter((x) => keepIds.has(x.weekId)),
-      audioRecords: next.audioRecords.filter((x) => keepIds.has(x.weekId)),
-      materialAudios: next.materialAudios.filter((x) => keepIds.has(x.weekId))
-    };
-  };
-
-  const applyLoadedState = (candidate: Partial<AppState> | null | undefined) => {
-    const hydrated = hydrateState(candidate);
-    const pruned = pruneStateByWeeks(hydrated);
-    setState(pruned);
-    return pruned;
-  };
-
-  const loadCloudSnapshot = async (userId: string, token: string) => {
-    const remote = await supabaseLoadSnapshot(userId, token);
-    if (remote) {
-      const applied = applyLoadedState(remote);
-      lastSyncedRef.current = JSON.stringify(applied);
-      cloudReadyRef.current = true;
-      return;
-    }
-    await supabaseSaveSnapshot(userId, token, state);
-    lastSyncedRef.current = JSON.stringify(state);
-    cloudReadyRef.current = true;
-  };
-
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
-        applyLoadedState(JSON.parse(raw) as Partial<AppState>);
-      } catch {
-        setState(defaultState);
-      }
+    if (!raw) return;
+    try {
+      setState(hydrateState(JSON.parse(raw) as Partial<AppState>));
+    } catch {
+      setState(defaultState);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toLocalSnapshot(state)));
   }, [state]);
 
-  useEffect(() => {
-    if (auth.mode === "guest" && state.prefs.ttsEngine !== "web") {
-      setState((prev) => ({ ...prev, prefs: { ...prev.prefs, ttsEngine: "web" } }));
+  const loadCloudSnapshot = async (userId: string, token: string) => {
+    const remote = await supabaseLoadSnapshot(userId, token);
+    if (remote) {
+      const hydrated = hydrateState(remote);
+      setState(hydrated);
+      lastSyncedRef.current = JSON.stringify(toCloudSnapshot(hydrated));
+      cloudReadyRef.current = true;
+      return;
     }
-  }, [auth.mode, state.prefs.ttsEngine]);
+    const snapshot = toCloudSnapshot(state);
+    await supabaseSaveSnapshot(userId, token, snapshot);
+    lastSyncedRef.current = JSON.stringify(snapshot);
+    cloudReadyRef.current = true;
+  };
 
   useEffect(() => {
     if (!auth.enabled) return;
@@ -219,6 +223,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           email: user.email ?? "",
           accessToken: parsed.accessToken!,
           plan,
+          role: getRoleFromEmail(user.email),
           busy: false
         });
         await loadCloudSnapshot(user.id, parsed.accessToken!);
@@ -227,6 +232,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAuth(defaultAuth);
       }
     };
+
     void boot();
   }, [auth.enabled]);
 
@@ -235,13 +241,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
     syncTimerRef.current = window.setTimeout(() => {
       const run = async () => {
-        const serialized = JSON.stringify(state);
+        const snapshot = toCloudSnapshot(state);
+        const serialized = JSON.stringify(snapshot);
         if (serialized === lastSyncedRef.current) return;
         try {
-          await supabaseSaveSnapshot(auth.userId!, auth.accessToken!, state);
+          await supabaseSaveSnapshot(auth.userId!, auth.accessToken!, snapshot);
           lastSyncedRef.current = serialized;
         } catch {
-          // keep local state even if sync failed
+          // keep local state
         }
       };
       void run();
@@ -252,8 +259,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [auth.accessToken, auth.enabled, auth.mode, auth.userId, state]);
 
   const activeWeek = useMemo(() => {
-    return state.weeks.find((w) => w.id === state.activeWeekId) ?? state.weeks[0];
+    return state.weeks.find((week) => week.id === state.activeWeekId) ?? state.weeks[0] ?? buildWeek();
   }, [state.activeWeekId, state.weeks]);
+
+  const updateActiveWeek = (updater: (week: WeekRecord) => WeekRecord) => {
+    setState((prev) => ({
+      ...prev,
+      weeks: prev.weeks.map((week) => (week.id === (prev.activeWeekId ?? activeWeek.id) ? updater(week) : week))
+    }));
+  };
 
   const signIn = async (email: string, password: string) => {
     if (!auth.enabled) throw new Error("Supabase is not configured.");
@@ -269,6 +283,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         email: session.user.email ?? email,
         accessToken: session.access_token,
         plan,
+        role: getRoleFromEmail(session.user.email ?? email),
         busy: false
       });
       await loadCloudSnapshot(session.user.id, session.access_token);
@@ -287,28 +302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAuth((prev) => ({ ...prev, busy: true, error: undefined }));
     try {
       await supabaseSignUp(email, password);
-      try {
-        const session = await supabaseSignIn(email, password);
-        localStorage.setItem(AUTH_KEY, JSON.stringify({ accessToken: session.access_token }));
-        setAuth({
-          enabled: true,
-          mode: "user",
-          userId: session.user.id,
-          email: session.user.email ?? email,
-          accessToken: session.access_token,
-          plan: "free",
-          busy: false
-        });
-        await loadCloudSnapshot(session.user.id, session.access_token);
-        return;
-      } catch (signInError) {
-        const msg = signInError instanceof Error ? signInError.message : "";
-        if (msg.includes("email_not_confirmed") || msg.includes("Email not confirmed")) {
-          setAuth((prev) => ({ ...prev, busy: false, error: undefined }));
-          return;
-        }
-        throw signInError;
-      }
+      setAuth((prev) => ({ ...prev, busy: false, error: undefined }));
     } catch (error) {
       setAuth((prev) => ({
         ...prev,
@@ -328,130 +322,150 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const syncNow = async () => {
     if (auth.mode !== "user" || !auth.userId || !auth.accessToken) return;
-    await supabaseSaveSnapshot(auth.userId, auth.accessToken, state);
-    lastSyncedRef.current = JSON.stringify(state);
+    const snapshot = toCloudSnapshot(state);
+    await supabaseSaveSnapshot(auth.userId, auth.accessToken, snapshot);
+    lastSyncedRef.current = JSON.stringify(snapshot);
   };
 
   const value: AppStateContextType = {
     state,
-    activeWeek,
     auth,
-    setLessonFocusActive: (active) => setState((prev) => ({ ...prev, lessonFocusActive: active })),
-    setLanguage: (lang) => setState((prev) => ({ ...prev, language: lang })),
-    setDefaultCefr: (cefr) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, defaultCefr: cefr } })),
-    setTtsEngine: (engine) =>
-      setState((prev) => {
-        if (auth.mode !== "user" && engine !== "web") return prev;
-        if (engine === "elevenlabs" && auth.plan !== "pro") return prev;
-        return { ...prev, prefs: { ...prev.prefs, ttsEngine: engine } };
-      }),
-    setTtsModel: (model) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, ttsModel: model } })),
-    setWizardAnswer: (key, value) =>
+    activeWeek,
+    canUseAdminMode: auth.role === "admin",
+    setLanguage: (language) => setState((prev) => ({ ...prev, language })),
+    setDefaultCefr: (defaultCefr) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, defaultCefr } })),
+    setPodcastUserGender: (podcastUserGender) =>
       setState((prev) => ({
         ...prev,
-        wizardAnswers: {
-          ...prev.wizardAnswers,
-          [key]: value
-        }
+        prefs: { ...prev.prefs, podcastUserGender },
+        weeks: prev.weeks.map((week) =>
+          week.id === (prev.activeWeekId ?? activeWeek.id)
+            ? { ...week, podcastUserVoice: choose(openAiVoices[podcastUserGender]) }
+            : week
+        )
       })),
-    resetWeekData: (weekId) =>
-      setState((prev) => {
-        const prefix = `${weekId}:`;
-        const nextAnswers: Record<string, string> = {};
-        for (const [k, v] of Object.entries(prev.wizardAnswers)) {
-          if (!k.startsWith(prefix)) nextAnswers[k] = v;
-        }
-        return {
-          ...prev,
-          taskRuns: prev.taskRuns.filter((x) => x.weekId !== weekId),
-          scripts: prev.scripts.filter((x) => x.weekId !== weekId),
-          roleplays: prev.roleplays.filter((x) => x.weekId !== weekId),
-          retellings: prev.retellings.filter((x) => x.weekId !== weekId),
-          audioRecords: prev.audioRecords.filter((x) => x.weekId !== weekId),
-          materialAudios: prev.materialAudios.filter((x) => x.weekId !== weekId),
-          reviewMemo: "",
-          wizardAnswers: nextAnswers
-        };
-      }),
-    undoLastCompletedTask: (weekId) =>
-      setState((prev) => {
-        const idx = prev.taskRuns.findIndex((x) => x.weekId === weekId && x.completed);
-        if (idx === -1) return prev;
-        return {
-          ...prev,
-          taskRuns: prev.taskRuns.filter((_, i) => i !== idx)
-        };
-      }),
-    saveWeek: (week) =>
-      setState((prev) => {
-        const exists = prev.weeks.some((w) => w.id === week.id);
-        const next = {
-          ...prev,
-          weeks: exists
-            ? prev.weeks.map((w) => (w.id === week.id ? { ...week, isFavorite: w.isFavorite ?? false, createdAt: w.createdAt ?? week.startDate } : w))
-            : [{ ...week, isFavorite: false, createdAt: week.createdAt ?? new Date().toISOString() }, ...prev.weeks],
-          activeWeekId: week.id
-        };
-        return pruneStateByWeeks(next);
-      }),
-    setActiveWeek: (weekId) => setState((prev) => ({ ...prev, activeWeekId: weekId })),
-    saveTaskRun: (task) => setState((prev) => ({ ...prev, taskRuns: [task, ...prev.taskRuns] })),
-    saveScript: (script) => setState((prev) => ({ ...prev, scripts: [script, ...prev.scripts] })),
-    saveRoleplay: (item) => setState((prev) => ({ ...prev, roleplays: [item, ...prev.roleplays] })),
-    saveRetelling: (item) => setState((prev) => ({ ...prev, retellings: [item, ...prev.retellings] })),
-    saveAudio: (item) => setState((prev) => ({ ...prev, audioRecords: [item, ...prev.audioRecords] })),
-    saveMaterialAudio: (item) =>
-      setState((prev) => {
-        const nextList = prev.materialAudios.filter((x) => !(x.weekId === item.weekId && x.kind === item.kind));
-        return { ...prev, materialAudios: [item, ...nextList] };
-      }),
-    setReviewMemo: (memo) => setState((prev) => ({ ...prev, reviewMemo: memo })),
+    setAdminDebugEnabled: (adminDebugEnabled) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, adminDebugEnabled } })),
+    setLessonFocusActive: (lessonFocusActive) => setState((prev) => ({ ...prev, lessonFocusActive })),
+    setLessonSession: (lessonSession) => setState((prev) => ({ ...prev, lessonSession })),
+    setCurrentJob: (currentJob) => setState((prev) => ({ ...prev, currentJob })),
+    saveWeekMeta: ({ theme, note, cefr }) =>
+      updateActiveWeek((week) => ({
+        ...week,
+        theme,
+        note,
+        cefr
+      })),
+    replaceWeek: (nextWeek) =>
+      setState((prev) => ({
+        ...prev,
+        weeks: prev.weeks.map((week) => (week.id === nextWeek.id ? nextWeek : week))
+      })),
     createNextWeek: () =>
       setState((prev) => {
-        const nextWeek: WeekPlan = {
-          id: crypto.randomUUID(),
-          startDate: monday(),
-          topicTitle: "New Topic",
-          goal: "Talk for 3 turns",
-          cefr: prev.prefs.defaultCefr,
-          descriptionJp: "",
-          streak: 1,
-          isFavorite: false,
-          createdAt: new Date().toISOString()
-        };
-        return pruneStateByWeeks({
+        const nextWeek = buildWeek();
+        nextWeek.cefr = prev.prefs.defaultCefr;
+        nextWeek.podcastUserVoice = choose(openAiVoices[prev.prefs.podcastUserGender]);
+        return {
           ...prev,
           weeks: [nextWeek, ...prev.weeks],
-          activeWeekId: nextWeek.id
-        });
-      }),
-    toggleWeekFavorite: (weekId) =>
-      setState((prev) => {
-        const target = prev.weeks.find((w) => w.id === weekId);
-        if (!target) return prev;
-        if (!target.isFavorite) {
-          const favoriteCount = prev.weeks.filter((w) => w.isFavorite).length;
-          if (favoriteCount >= 9) return prev;
-        }
-        const next = {
-          ...prev,
-          weeks: prev.weeks.map((w) => (w.id === weekId ? { ...w, isFavorite: !w.isFavorite } : w))
+          activeWeekId: nextWeek.id,
+          lessonFocusActive: false,
+          lessonSession: undefined,
+          currentJob: undefined
         };
-        return pruneStateByWeeks(next);
       }),
+    setActiveWeek: (weekId) => setState((prev) => ({ ...prev, activeWeekId: weekId })),
+    saveSpeech: (speech) => updateActiveWeek((week) => ({ ...week, speech })),
+    savePhraseSet: (phraseSet) => updateActiveWeek((week) => ({ ...week, phraseSets: [...week.phraseSets.filter((item) => item.dayIndex !== phraseSet.dayIndex), phraseSet] })),
+    savePodcast: (episode) => updateActiveWeek((week) => ({ ...week, podcasts: [...week.podcasts.filter((item) => item.dayIndex !== episode.dayIndex), episode] })),
+    saveRetelling: (retelling) => updateActiveWeek((week) => ({ ...week, retellings: [...week.retellings.filter((item) => item.dayIndex !== retelling.dayIndex), retelling] })),
+    saveExternalPrompt: (prompt) => updateActiveWeek((week) => ({ ...week, externalPrompts: [...week.externalPrompts.filter((item) => item.dayIndex !== prompt.dayIndex), prompt] })),
+    markTaskComplete: (dayIndex, task) =>
+      updateActiveWeek((week) => ({
+        ...week,
+        dayStatuses: week.dayStatuses.map((status) =>
+          status.dayIndex === dayIndex
+            ? {
+                ...status,
+                tasks: {
+                  ...status.tasks,
+                  [task]: true
+                }
+              }
+            : status
+        )
+      })),
+    completeDay: (dayIndex) =>
+      updateActiveWeek((week) => ({
+        ...week,
+        dayStatuses: week.dayStatuses.map((status) =>
+          status.dayIndex === dayIndex
+            ? {
+                ...status,
+                completed: true
+              }
+            : status
+        ),
+        status: dayIndex >= 7 ? "completed" : week.status
+      })),
+    resetActiveWeek: () =>
+      setState((prev) => ({
+        ...prev,
+        weeks: prev.weeks.map((week) =>
+          week.id === (prev.activeWeekId ?? activeWeek.id)
+            ? {
+                ...buildWeek(),
+                id: week.id,
+                startDate: week.startDate,
+                createdAt: week.createdAt,
+                podcastUserVoice: choose(openAiVoices[prev.prefs.podcastUserGender])
+              }
+            : week
+        ),
+        lessonFocusActive: false,
+        lessonSession: undefined,
+        currentJob: undefined,
+        debugTraces: []
+      })),
+    incrementPhraseUsage: (phraseIds) =>
+      setState((prev) => ({
+        ...prev,
+        phraseUsage: phraseIds.reduce<Record<string, number>>((acc, id) => {
+          acc[id] = (acc[id] ?? 0) + 1;
+          return acc;
+        }, { ...prev.phraseUsage })
+      })),
+    addDebugTrace: (trace) => setState((prev) => ({ ...prev, debugTraces: [trace, ...prev.debugTraces].slice(0, 25) })),
+    clearDebugTraces: () => setState((prev) => ({ ...prev, debugTraces: [] })),
+    markGuestTrialDay: (dayIndex) =>
+      setState((prev) => ({
+        ...prev,
+        guestTrial: {
+          completedDayIndices: prev.guestTrial.completedDayIndices.includes(dayIndex)
+            ? prev.guestTrial.completedDayIndices
+            : [...prev.guestTrial.completedDayIndices, dayIndex]
+        }
+      })),
     signIn,
     signUp,
     signOut,
     syncNow
   };
 
+  useEffect(() => {
+    if (!state.activeWeekId && state.weeks[0]?.id) {
+      setState((prev) => ({ ...prev, activeWeekId: prev.weeks[0]?.id }));
+    }
+  }, [state.activeWeekId, state.weeks]);
+
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
 
 export function useAppState() {
   const ctx = useContext(AppStateContext);
-  if (!ctx) {
-    throw new Error("useAppState must be used inside AppProvider");
-  }
+  if (!ctx) throw new Error("useAppState must be used inside AppProvider");
   return ctx;
 }
+
+export { guestSampleDays };
+

@@ -1,116 +1,111 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { AppIntroModal } from "@/components/AppIntroModal";
 import { useAppState } from "@/lib/app-state";
 import { CEFR } from "@/lib/types";
-import { AppIntroModal } from "@/components/AppIntroModal";
 
 const cefrs: CEFR[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
-const JA = {
-  title: "設定 / ヘルプ",
-  desc: "Prompt-first運用。v0.xではAPI連携なし。",
-  language: "表示言語",
-  auth: "アカウント",
-  ttsEngine: "読み上げエンジン",
-  ttsModel: "Google音声モデル",
-  defaultCefr: "デフォルト CEFR",
-  defaultDesc: "「今日のレッスン」タブでデフォルトとして提案されます。",
-  glossary: "用語ヘルプ"
-};
-
-const glossaryEn = [
-  ["Personal topic", "A topic from your real life that you actually use in conversation."],
-  ["Backward design", "Define speaking goal first, then learn only what you need."],
-  ["Stacking learning", "Input-heavy learning before speaking practice."],
-  ["1-minute speech", "Your own script that can be spoken in around one minute."],
-  ["Model audio", "Reference audio for checking pronunciation and rhythm."],
-  ["Read aloud", "Reading text aloud to internalize sounds and rhythm."],
-  ["Shadowing", "Repeat right after audio with a small delay."],
-  ["Retelling", "Re-express content in your own words."],
-  ["3-2-1 retelling", "Retell in 3, 2, then 1 minute."],
-  ["Materialization", "Turn corrected output into reusable study material."]
-];
-
-const glossaryJa = [
-  ["自分ごとトピック", "実際に話す機会がある話題。"],
-  ["逆算型学習", "先に話せる状態を決めて必要な部分だけ学ぶ方法。"],
-  ["積み上げ型学習", "大量インプットを先に積む学習法。"],
-  ["1分間スピーチ", "1分程度で話せる自分専用の台本。"],
-  ["モデル音声", "発音とリズム確認のための参考音声。"],
-  ["音読", "英文を声に出して読む練習。"],
-  ["シャドーイング", "音声に少し遅れて追従する練習。"],
-  ["リテリング", "内容を自分の言葉で言い直す練習。"],
-  ["3-2-1リテリング", "3分→2分→1分で同内容を話す。"],
-  ["教材化", "添削結果を復習教材として再利用すること。"]
-];
-
 export default function ProfilePage() {
-  const { state, auth, setLanguage, setDefaultCefr, setTtsEngine, setTtsModel, signIn, signUp, signOut, syncNow } = useAppState();
+  const {
+    state,
+    auth,
+    canUseAdminMode,
+    setLanguage,
+    setDefaultCefr,
+    setPodcastUserGender,
+    setAdminDebugEnabled,
+    signIn,
+    signUp,
+    signOut,
+    syncNow,
+    clearDebugTraces
+  } = useAppState();
   const ja = state.language === "ja";
-  const glossary = ja ? glossaryJa : glossaryEn;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [showIntro, setShowIntro] = useState(false);
 
-  const doSignIn = async () => {
+  const guestDays = useMemo(() => state.guestTrial.completedDayIndices.length, [state.guestTrial.completedDayIndices.length]);
+
+  const submitSignIn = async () => {
     setMessage("");
     try {
       await signIn(email.trim(), password);
       setMessage(ja ? "ログインしました。" : "Signed in.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sign in failed.");
+      setMessage(error instanceof Error ? error.message : ja ? "ログインに失敗しました。" : "Sign in failed.");
     }
   };
 
-  const doSignUp = async () => {
+  const submitSignUp = async () => {
     setMessage("");
     try {
       await signUp(email.trim(), password);
-      setMessage(ja ? "Supabase Authから確認メールが届きます。メール確認後にログインしてください。" : "Confirmation email sent. Confirm email, then sign in.");
+      setMessage(
+        ja
+          ? "Supabase Authから確認メールが届きます。メール確認後にログインしてください。"
+          : "Supabase Auth will send a confirmation email. Sign in after verifying your email."
+      );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sign up failed.");
+      setMessage(error instanceof Error ? error.message : ja ? "アカウント作成に失敗しました。" : "Sign up failed.");
     }
   };
-
-  const canUseGoogleTts = auth.mode === "user";
-  const canUseElevenLabs = auth.mode === "user" && auth.plan === "pro";
 
   return (
     <div className="space-y-4">
       <AppIntroModal open={showIntro} language={state.language} onClose={() => setShowIntro(false)} />
 
-      <section className="glass rounded-xl2 p-4">
-        <h1 className="text-xl font-black text-slate-900">{ja ? JA.title : "Profile / Help"}</h1>
-        <p className="text-sm text-slate-900">{ja ? JA.desc : "Prompt-first workflow. API execution is out of scope in v0.x."}</p>
+      <section className="glass rounded-xl2 p-4 space-y-2">
+        <h1 className="text-xl font-black text-slate-900">{ja ? "設定" : "Settings"}</h1>
+        <p className="text-sm text-slate-700">
+          {ja
+            ? "1週間1テーマの学習を回すための基本設定です。"
+            : "These are the core settings for your weekly theme-based study flow."}
+        </p>
       </section>
 
       <section className="glass rounded-xl2 p-4 space-y-3">
-        <h2 className="text-base font-bold text-slate-900">{ja ? JA.auth : "Account"}</h2>
-        {!auth.enabled && <p className="text-sm text-rose-700">{ja ? "Supabaseの環境変数が未設定です。" : "Supabase env vars are missing."}</p>}
-        <p className="text-sm text-slate-900">
-          {auth.mode === "user"
-            ? `${ja ? "ログイン中" : "Signed in"}: ${auth.email || auth.userId} / Plan: ${auth.plan.toUpperCase()}`
-            : ja
-              ? "現在はゲストモードです。"
-              : "Currently in guest mode."}
-        </p>
+        <h2 className="text-base font-bold text-slate-900">{ja ? "アカウント" : "Account"}</h2>
+        <div className="text-sm text-slate-900 space-y-1">
+          <p>
+            {auth.mode === "user"
+              ? ja
+                ? `ログイン中: ${auth.email ?? auth.userId}`
+                : `Signed in as ${auth.email ?? auth.userId}`
+              : ja
+                ? "現在はゲスト利用です。"
+                : "You are currently using guest mode."}
+          </p>
+          <p>{ja ? `プラン: ${auth.plan.toUpperCase()}` : `Plan: ${auth.plan.toUpperCase()}`}</p>
+          {auth.mode === "guest" && (
+            <p className="text-slate-600">{ja ? `体験版の完了日数: ${guestDays} / 3` : `Guest trial days completed: ${guestDays} / 3`}</p>
+          )}
+        </div>
+
         {auth.mode !== "user" ? (
           <div className="space-y-2">
-            <input className="input text-slate-900" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input className="input text-slate-900" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input className="input text-slate-900" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input
+              className="input text-slate-900"
+              type="password"
+              placeholder={ja ? "パスワード" : "Password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
             <div className="flex gap-2">
-              <button className="btn-primary" onClick={() => void doSignIn()} disabled={auth.busy || !email || !password}>
+              <button className="btn-primary" disabled={!email.trim() || !password || auth.busy} onClick={() => void submitSignIn()}>
                 {ja ? "ログイン" : "Sign In"}
               </button>
-              <button className="btn-secondary" onClick={() => void doSignUp()} disabled={auth.busy || !email || !password}>
-                {ja ? "新規登録" : "Sign Up"}
+              <button className="btn-secondary" disabled={!email.trim() || !password || auth.busy} onClick={() => void submitSignUp()}>
+                {ja ? "新規作成" : "Create Account"}
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" onClick={() => void syncNow()}>
               {ja ? "今すぐ同期" : "Sync Now"}
             </button>
@@ -119,84 +114,95 @@ export default function ProfilePage() {
             </button>
           </div>
         )}
-        <button className="btn-secondary w-full" onClick={() => setShowIntro(true)}>
-          {ja ? "アプリ説明を見る" : "View App Intro"}
-        </button>
-        {(message || auth.error) && <p className="text-xs text-slate-900">{message || auth.error}</p>}
+
+        {message && <p className="text-sm text-rose-700">{message}</p>}
       </section>
 
       <section className="glass rounded-xl2 p-4 space-y-3">
-        <h2 className="text-base font-bold text-slate-900">{ja ? JA.language : "Display Language"}</h2>
-        <div className="flex gap-2">
-          <button className={state.language === "en" ? "btn-primary" : "btn-secondary"} onClick={() => setLanguage("en")}>
-            English
-          </button>
-          <button className={state.language === "ja" ? "btn-primary" : "btn-secondary"} onClick={() => setLanguage("ja")}>
-            日本語
-          </button>
-        </div>
-      </section>
-
-      <section className="glass rounded-xl2 p-4 space-y-3">
-        <h2 className="text-base font-bold text-slate-900">{ja ? JA.ttsEngine : "TTS Engine"}</h2>
-        <div className="flex flex-wrap gap-2">
-          <button className={state.prefs.ttsEngine === "web" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsEngine("web")}>
-            Web Speech
-          </button>
-          <button
-            className={state.prefs.ttsEngine === "google" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setTtsEngine("google")}
-            disabled={!canUseGoogleTts}
-          >
-            Google TTS
-          </button>
-          <button
-            className={state.prefs.ttsEngine === "elevenlabs" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setTtsEngine("elevenlabs")}
-            disabled={!canUseElevenLabs}
-          >
-            ElevenLabs
-          </button>
-        </div>
-        <p className="text-xs text-slate-900">{ja ? "ElevenLabs は Pro プラン専用です。" : "ElevenLabs is available for Pro plan only."}</p>
-        {auth.mode !== "user" && <p className="text-xs text-slate-900">{ja ? "ゲストは Web Speech のみ利用できます。" : "Guest mode supports Web Speech only."}</p>}
-      </section>
-
-      {state.prefs.ttsEngine === "google" && (
-        <section className="glass rounded-xl2 p-4 space-y-3">
-          <h2 className="text-base font-bold text-slate-900">{ja ? JA.ttsModel : "Google Model"}</h2>
+        <h2 className="text-base font-bold text-slate-900">{ja ? "学習設定" : "Learning Preferences"}</h2>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-900">{ja ? "表示言語" : "Language"}</label>
           <div className="flex gap-2">
-            <button className={state.prefs.ttsModel === "standard" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsModel("standard")}>
-              Standard
+            <button className={state.language === "ja" ? "btn-primary" : "btn-secondary"} onClick={() => setLanguage("ja")}>
+              日本語
             </button>
-            <button className={state.prefs.ttsModel === "wavenet" ? "btn-primary" : "btn-secondary"} onClick={() => setTtsModel("wavenet")}>
-              WaveNet
+            <button className={state.language === "en" ? "btn-primary" : "btn-secondary"} onClick={() => setLanguage("en")}>
+              English
             </button>
           </div>
-        </section>
-      )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-900">{ja ? "デフォルトCEFR" : "Default CEFR"}</label>
+          <div className="flex flex-wrap gap-2">
+            {cefrs.map((cefr) => (
+              <button key={cefr} className={state.prefs.defaultCefr === cefr ? "btn-primary" : "btn-secondary"} onClick={() => setDefaultCefr(cefr)}>
+                {cefr}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600">
+            {ja ? "Day1 の1分スピーチ作成時に最初から入る値です。" : "This is pre-filled on Day 1 when you create the 1-minute speech."}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-900">{ja ? "PodcastのUser役の声" : "Podcast User Voice"}</label>
+          <div className="flex gap-2">
+            <button
+              className={state.prefs.podcastUserGender === "female" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setPodcastUserGender("female")}
+            >
+              {ja ? "女性" : "Female"}
+            </button>
+            <button className={state.prefs.podcastUserGender === "male" ? "btn-primary" : "btn-secondary"} onClick={() => setPodcastUserGender("male")}>
+              {ja ? "男性" : "Male"}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-900">{ja ? "音声生成" : "Audio Generation"}</label>
+          <p className="text-sm text-slate-700">{ja ? "音声生成は OpenAI API を使います。" : "Audio generation uses the OpenAI API."}</p>
+        </div>
+      </section>
 
       <section className="glass rounded-xl2 p-4 space-y-3">
-        <h2 className="text-base font-bold text-slate-900">{ja ? JA.defaultCefr : "Default CEFR"}</h2>
-        <select className="input text-slate-900" value={state.prefs.defaultCefr} onChange={(e) => setDefaultCefr(e.target.value as CEFR)}>
-          {cefrs.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-slate-900">{ja ? JA.defaultDesc : "Used as suggested CEFR in the Today tab flow."}</p>
+        <h2 className="text-base font-bold text-slate-900">{ja ? "アプリ説明" : "App Intro"}</h2>
+        <p className="text-sm text-slate-700">
+          {ja ? "学習コンセプトと参考動画をいつでも見返せます。" : "You can reopen the learning concept cards and embedded reference video anytime."}
+        </p>
+        <button className="btn-secondary" onClick={() => setShowIntro(true)}>
+          {ja ? "説明カードを見る" : "Open Intro Cards"}
+        </button>
       </section>
 
-      <section className="glass rounded-xl2 p-4 space-y-2">
-        <h2 className="text-base font-bold text-slate-900">{ja ? JA.glossary : "Glossary"}</h2>
-        {glossary.map(([term, desc]) => (
-          <article className="input" key={term}>
-            <p className="font-semibold text-slate-900">{term}</p>
-            <p className="text-sm text-slate-900">{desc}</p>
-          </article>
-        ))}
-      </section>
+      {canUseAdminMode && (
+        <section className="glass rounded-xl2 p-4 space-y-3">
+          <h2 className="text-base font-bold text-slate-900">{ja ? "管理者モード" : "Admin Mode"}</h2>
+          <label className="flex items-center gap-2 text-sm text-slate-900">
+            <input type="checkbox" checked={state.prefs.adminDebugEnabled} onChange={(e) => setAdminDebugEnabled(e.target.checked)} />
+            {ja ? "デバッグ表示を有効にする" : "Enable debug traces"}
+          </label>
+          <p className="text-xs text-slate-600">
+            {ja ? "生成時のプロンプト・入力・返答を、その場だけ確認できます。" : "This shows generation prompts, inputs, and responses for the current session only."}
+          </p>
+          {state.debugTraces.length > 0 && (
+            <div className="space-y-2">
+              <button className="btn-secondary" onClick={clearDebugTraces}>
+                {ja ? "デバッグ表示をクリア" : "Clear Debug Traces"}
+              </button>
+              {state.debugTraces.slice(0, 5).map((trace) => (
+                <details key={trace.id} className="input text-sm text-slate-900">
+                  <summary className="cursor-pointer font-semibold">{trace.feature}</summary>
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-700">{JSON.stringify(trace.parsedResponse, null, 2)}</pre>
+                </details>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,10 +19,10 @@ export function BottomNav() {
   }, [locked, router]);
 
   const tabs = [
-    { href: "/", label: ja ? "\u4eca\u65e5\u306e\u30ec\u30c3\u30b9\u30f3" : "Today" },
-    { href: "/practice", label: ja ? "\u9032\u6357" : "Progress" },
-    { href: "/materials", label: ja ? "\u6559\u6750" : "Materials" },
-    { href: "/profile", label: ja ? "\u8a2d\u5b9a" : "Profile" }
+    { href: "/", label: ja ? "今日のレッスン" : "Today Lesson" },
+    { href: "/practice", label: ja ? "進捗" : "Progress" },
+    { href: "/materials", label: ja ? "教材" : "Materials" },
+    { href: "/profile", label: ja ? "設定" : "Settings" }
   ];
 
   return (
@@ -36,10 +36,7 @@ export function BottomNav() {
               {disabled ? (
                 <span className="block rounded-xl px-2 py-2 text-center font-semibold text-slate-400">{tab.label}</span>
               ) : (
-                <Link
-                  className={`block rounded-xl px-2 py-2 text-center font-semibold ${active ? "bg-accent text-white" : "text-slate-700 dark:text-slate-300"}`}
-                  href={tab.href}
-                >
+                <Link className={`block rounded-xl px-2 py-2 text-center font-semibold ${active ? "bg-accent text-white" : "text-slate-700"}`} href={tab.href}>
                   {tab.label}
                 </Link>
               )}
@@ -50,3 +47,4 @@ export function BottomNav() {
     </nav>
   );
 }
+
