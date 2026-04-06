@@ -27,7 +27,7 @@ function SegmentText({ segment }: { segment: LessonSegment }) {
 }
 
 export default function MaterialsPage() {
-  const { state, activeWeek, setActiveWeek } = useAppState();
+  const { state, auth, activeWeek, setActiveWeek } = useAppState();
   const ja = state.language === "ja";
   const [tab, setTab] = useState<MaterialTab>("speech");
   const [selectedPodcastId, setSelectedPodcastId] = useState<string | undefined>(activeWeek.podcasts[0]?.id);
@@ -41,13 +41,14 @@ export default function MaterialsPage() {
   );
 
   const selectedPodcast = activeWeek.podcasts.find((episode) => episode.id === selectedPodcastId) ?? activeWeek.podcasts[0];
+  const cloudScope = auth.mode === "user" && auth.userId && auth.accessToken ? { userId: auth.userId, accessToken: auth.accessToken } : undefined;
 
   const playText = async (key: string, text: string, voice: string) => {
     if (!text.trim()) return;
     stopAudio(audioRef);
     setPlayingKey(key);
     try {
-      const blob = await getSpeechBlob(text, voice);
+      const blob = await getSpeechBlob(text, voice, cloudScope);
       if (!blob) return;
       await playBlob(blob, audioRef);
     } finally {
@@ -60,7 +61,7 @@ export default function MaterialsPage() {
     setPlayingKey(`podcast:${episode.id}`);
     try {
       for (const turn of episode.turns) {
-        const blob = await getSpeechBlob(turn.text, turn.voice);
+        const blob = await getSpeechBlob(turn.text, turn.voice, cloudScope);
         if (!blob) return;
         await playBlob(blob, audioRef);
       }

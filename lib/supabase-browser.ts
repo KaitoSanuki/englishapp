@@ -97,6 +97,17 @@ const getAudioExt = (mimeType: string) => {
   return "webm";
 };
 
+export const supabasePublicAudioUrl = (path: string) => {
+  if (!isSupabaseEnabled()) {
+    throw new Error("Supabase is not configured.");
+  }
+  return `${url}/storage/v1/object/public/audio/${path}`;
+};
+
+export const supabaseGeneratedSpeechPath = (args: { userId: string; voice: string; hash: string }) => {
+  return `${args.userId}/generated/openai-v1/${encodeURIComponent(args.voice)}/${args.hash}.mp3`;
+};
+
 export const supabaseUploadAudio = async (args: {
   accessToken: string;
   userId: string;
@@ -126,4 +137,32 @@ export const supabaseUploadAudio = async (args: {
   }
   const publicUrl = `${url}/storage/v1/object/public/audio/${path}`;
   return { path, publicUrl };
+};
+
+export const supabaseUploadGeneratedAudio = async (args: {
+  accessToken: string;
+  userId: string;
+  voice: string;
+  hash: string;
+  blob: Blob;
+}) => {
+  if (!isSupabaseEnabled()) {
+    throw new Error("Supabase is not configured.");
+  }
+  const path = supabaseGeneratedSpeechPath({ userId: args.userId, voice: args.voice, hash: args.hash });
+  const res = await fetch(`${url}/storage/v1/object/audio/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${args.accessToken}`,
+      "x-upsert": "true",
+      "Content-Type": args.blob.type || "audio/mpeg"
+    },
+    body: args.blob
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Generated audio upload failed.");
+  }
+  return { path, publicUrl: supabasePublicAudioUrl(path) };
 };

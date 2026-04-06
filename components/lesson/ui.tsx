@@ -167,9 +167,11 @@ export function FullTranscript({
 }
 
 export function useAudioPlayback() {
+  const { auth } = useAppState();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const runIdRef = useRef(0);
   const [playingKey, setPlayingKey] = useState("");
+  const cloudScope = auth.mode === "user" && auth.userId && auth.accessToken ? { userId: auth.userId, accessToken: auth.accessToken } : undefined;
 
   const stop = () => {
     runIdRef.current += 1;
@@ -183,7 +185,7 @@ export function useAudioPlayback() {
     const runId = ++runIdRef.current;
     setPlayingKey(key);
     try {
-      const blob = await getSpeechBlob(text, voice);
+      const blob = await getSpeechBlob(text, voice, cloudScope);
       if (!blob || runId !== runIdRef.current) return;
       await playBlob(blob, audioRef);
     } finally {
@@ -199,7 +201,7 @@ export function useAudioPlayback() {
       for (let index = 0; index < items.length; index += 1) {
         if (runId !== runIdRef.current) return;
         onIndex?.(index);
-        const blob = await getSpeechBlob(items[index].text, items[index].voice);
+        const blob = await getSpeechBlob(items[index].text, items[index].voice, cloudScope);
         if (!blob || runId !== runIdRef.current) return;
         await playBlob(blob, audioRef);
       }
