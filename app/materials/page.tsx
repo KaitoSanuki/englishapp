@@ -34,6 +34,7 @@ export default function MaterialsPage() {
   const [selectedStamp, setSelectedStamp] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingKey, setPlayingKey] = useState("");
+  const [audioMessage, setAudioMessage] = useState("");
 
   const orderedWeeks = useMemo(
     () => [...state.weeks].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -42,15 +43,22 @@ export default function MaterialsPage() {
 
   const selectedPodcast = activeWeek.podcasts.find((episode) => episode.id === selectedPodcastId) ?? activeWeek.podcasts[0];
   const cloudScope = auth.mode === "user" && auth.userId && auth.accessToken ? { userId: auth.userId, accessToken: auth.accessToken } : undefined;
+  const unavailableAudioMessage = ja ? "この音声はまだ準備されていません。" : "This audio is not ready yet.";
 
   const playText = async (key: string, text: string, voice: string) => {
     if (!text.trim()) return;
     stopAudio(audioRef);
     setPlayingKey(key);
+    setAudioMessage("");
     try {
-      const blob = await getSpeechBlob(text, voice, cloudScope);
-      if (!blob) return;
+      const blob = await getSpeechBlob(text, voice, cloudScope, { allowGenerate: false });
+      if (!blob) {
+        setAudioMessage(unavailableAudioMessage);
+        return;
+      }
       await playBlob(blob, audioRef);
+    } catch {
+      setAudioMessage(unavailableAudioMessage);
     } finally {
       setPlayingKey("");
     }
@@ -59,12 +67,18 @@ export default function MaterialsPage() {
   const playPodcastEpisode = async (episode: PodcastEpisode) => {
     stopAudio(audioRef);
     setPlayingKey(`podcast:${episode.id}`);
+    setAudioMessage("");
     try {
       for (const turn of episode.turns) {
-        const blob = await getSpeechBlob(turn.text, turn.voice, cloudScope);
-        if (!blob) return;
+        const blob = await getSpeechBlob(turn.text, turn.voice, cloudScope, { allowGenerate: false });
+        if (!blob) {
+          setAudioMessage(unavailableAudioMessage);
+          return;
+        }
         await playBlob(blob, audioRef);
       }
+    } catch {
+      setAudioMessage(unavailableAudioMessage);
     } finally {
       setPlayingKey("");
     }
@@ -118,6 +132,7 @@ export default function MaterialsPage() {
             </button>
           ))}
         </div>
+        {audioMessage && <p className="text-sm text-rose-700">{audioMessage}</p>}
 
         {tab === "speech" && (
           <div className="space-y-3">

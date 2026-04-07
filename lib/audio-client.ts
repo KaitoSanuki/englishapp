@@ -3,11 +3,15 @@
 import { isSupabaseEnabled, supabaseGeneratedSpeechPath, supabasePublicAudioUrl, supabaseUploadGeneratedAudio } from "@/lib/supabase-browser";
 
 const CACHE_NAME = "english-loop-openai-audio-v2";
-const inFlight = new Map<string, Promise<Blob>>();
+const inFlight = new Map<string, Promise<Blob | null>>();
 
 type CloudAudioScope = {
   userId: string;
   accessToken: string;
+};
+
+type SpeechBlobOptions = {
+  allowGenerate?: boolean;
 };
 
 const hashText = (text: string) => {
@@ -27,9 +31,10 @@ const saveToBrowserCache = async (request: Request, blob: Blob) => {
   await cache.put(request, new Response(blob, { headers: { "Content-Type": blob.type || "audio/mpeg" } }));
 };
 
-export const getSpeechBlob = async (text: string, voice: string, cloudScope?: CloudAudioScope) => {
+export const getSpeechBlob = async (text: string, voice: string, cloudScope?: CloudAudioScope, options?: SpeechBlobOptions) => {
   const clean = text.trim();
   if (!clean) return null;
+  const allowGenerate = options?.allowGenerate ?? true;
 
   const request = cacheRequest(voice, clean);
   if (typeof window !== "undefined" && "caches" in window) {
@@ -52,6 +57,10 @@ export const getSpeechBlob = async (text: string, voice: string, cloudScope?: Cl
         await saveToBrowserCache(request, blob);
         return blob;
       }
+    }
+
+    if (!allowGenerate) {
+      return null;
     }
 
     const res = await fetch("/api/openai/speech", {
