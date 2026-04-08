@@ -11,6 +11,8 @@ const cefrs: Exclude<CEFR, "C2">[] = ["A1", "A2", "B1", "B2", "C1"];
 
 type MaterialTab = "speech" | "podcast" | "phrases";
 
+const normalizePhrase = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+
 function SegmentText({ segment }: { segment: LessonSegment }) {
   return (
     <p className="text-sm leading-7 text-slate-900 whitespace-pre-wrap">
@@ -89,9 +91,13 @@ export default function MaterialsPage() {
     for (const week of state.weeks) {
       for (const set of week.phraseSets) {
         for (const card of set.cards) {
-          const current = map.get(card.bankId) ?? [];
+          const resolvedBankId =
+            phraseBank.find((item) => item.id === card.bankId)?.id ??
+            phraseBank.find((item) => normalizePhrase(item.phrase) === normalizePhrase(card.original))?.id;
+          if (!resolvedBankId) continue;
+          const current = map.get(resolvedBankId) ?? [];
           current.push(card);
-          map.set(card.bankId, current);
+          map.set(resolvedBankId, current);
         }
       }
     }
@@ -142,7 +148,6 @@ export default function MaterialsPage() {
                   <p className="text-xs font-semibold text-slate-700">{ja ? "テーマ" : "Theme"}</p>
                   <p className="text-base font-bold text-slate-900">{activeWeek.speech.theme}</p>
                   <p className="text-xs font-semibold text-slate-700">CEFR {activeWeek.speech.cefr}</p>
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{activeWeek.speech.note}</p>
                 </article>
                 <article className="space-y-2">
                   <div className="flex gap-2">

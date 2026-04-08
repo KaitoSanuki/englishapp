@@ -80,11 +80,15 @@ export function DebugBlock({ feature }: { feature: string }) {
         <div className="mt-3 space-y-3 text-xs text-slate-700">
           <div>
             <p className="font-semibold text-slate-900">Prompt</p>
-            <pre className="whitespace-pre-wrap break-words">{trace.promptJa}</pre>
+            <div className="mt-1 max-h-48 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
+              <pre className="whitespace-pre-wrap break-words">{trace.promptJa}</pre>
+            </div>
           </div>
           <div>
             <p className="font-semibold text-slate-900">Parsed</p>
-            <pre className="whitespace-pre-wrap break-words">{JSON.stringify(trace.parsedResponse, null, 2)}</pre>
+            <div className="mt-1 max-h-48 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
+              <pre className="whitespace-pre-wrap break-words">{JSON.stringify(trace.parsedResponse, null, 2)}</pre>
+            </div>
           </div>
         </div>
       )}
@@ -152,6 +156,31 @@ export function ScriptPreview({
   return (
     <div className={`overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 ${maxHeightClass}`}>
       <p className="whitespace-pre-wrap break-words text-base leading-8 text-slate-900">{text}</p>
+    </div>
+  );
+}
+
+export function AnnotatedScriptPreview({
+  segments,
+  maxHeightClass = "max-h-[55vh]"
+}: {
+  segments: LessonSegment[];
+  maxHeightClass?: string;
+}) {
+  return (
+    <div className={`overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 ${maxHeightClass}`}>
+      <div className="whitespace-pre-wrap break-words text-base leading-8 text-slate-900">
+        {segments.map((segment, index) => (
+          <span key={segment.id}>
+            {segment.tokens.map((token) => (
+              <span key={token.id} style={getTokenStyle(token.weight)}>
+                {token.text}
+              </span>
+            ))}
+            {index < segments.length - 1 ? " " : null}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

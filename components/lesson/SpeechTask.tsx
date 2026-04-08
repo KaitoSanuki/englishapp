@@ -5,7 +5,7 @@ import { useAppState } from "@/lib/app-state";
 import { splitSentences, makeSegment } from "@/lib/lesson-utils";
 import { AnnotatedToken, CEFR, SpeechMaterial } from "@/lib/types";
 import { jsonPost } from "@/components/lesson/api";
-import { CardShell, DebugBlock, ScriptPreview, SegmentTextBlock, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { AnnotatedScriptPreview, CardShell, DebugBlock, ScriptPreview, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, state, saveWeekMeta, saveSpeech, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
@@ -86,7 +86,7 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         id: crypto.randomUUID(),
         weekId: activeWeek.id,
         theme: theme.trim(),
-        note: note.trim(),
+        note: "",
         cefr,
         promptJa: generated.debug?.promptJa ?? "",
         scriptText: script.script,
@@ -186,7 +186,7 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
             <TokenEditor segment={segment} editable={false} />
           </div>
         )}
-        {stage === "full" && <SegmentTextBlock segments={speech.segments} />}
+        {stage === "full" && <AnnotatedScriptPreview segments={speech.segments} />}
       </CardShell>
     );
   }
@@ -251,7 +251,7 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
           <TokenEditor segment={currentSegment} editable={stage === "strong" || stage === "weak"} onTokenTap={(tokenId) => applyTokenTap(tokenId, stage === "strong" ? "strong" : "weak")} />
         </div>
       )}
-      {stage === "full" && <SegmentTextBlock segments={speech.segments} />}
+      {stage === "full" && <AnnotatedScriptPreview segments={speech.segments} />}
     </CardShell>
   );
 }

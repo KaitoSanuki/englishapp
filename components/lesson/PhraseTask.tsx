@@ -8,6 +8,8 @@ import { AnnotatedToken, PhraseCard, PhraseSet } from "@/lib/types";
 import { jsonPost } from "@/components/lesson/api";
 import { CardShell, DebugBlock, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
+const normalizePhrase = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+
 export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, state, savePhraseSet, incrementPhraseUsage, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
   const ja = state.language === "ja";
@@ -16,7 +18,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   const [stage, setStage] = useState<"intro" | "listen" | "strong" | "weak" | "confirm" | "overlap" | "review">("intro");
   const [cardIndex, setCardIndex] = useState(0);
   const [reviewIndex, setReviewIndex] = useState(0);
-  const [showScript, setShowScript] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   const [history, setHistory] = useState<AnnotatedToken[][]>([]);
   const [error, setError] = useState("");
@@ -78,18 +79,23 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         id: crypto.randomUUID(),
         weekId: activeWeek.id,
         dayIndex,
-        cards: generated.data.items.map((item) => ({
-          id: crypto.randomUUID(),
-          bankId: item.bankId,
-          original: item.original,
-          personalized: item.personalized,
-          translation: item.translation,
-          cefr: picked.items.find((candidate) => candidate.id === item.bankId)?.cefr ?? "A1",
-          dayIndex,
-          cycle: picked.cycle,
-          segment: makeSegment(item.personalized, activeWeek.podcastUserVoice, "user"),
-          createdAt: new Date().toISOString()
-        })),
+        cards: generated.data.items.map((item) => {
+          const matchedCandidate = picked.items.find(
+            (candidate) => candidate.id === item.bankId || normalizePhrase(candidate.phrase) === normalizePhrase(item.original)
+          );
+          return {
+            id: crypto.randomUUID(),
+            bankId: matchedCandidate?.id ?? item.bankId,
+            original: matchedCandidate?.phrase ?? item.original,
+            personalized: item.personalized,
+            translation: item.translation,
+            cefr: matchedCandidate?.cefr ?? "A1",
+            dayIndex,
+            cycle: picked.cycle,
+            segment: makeSegment(item.personalized, activeWeek.podcastUserVoice, "user"),
+            createdAt: new Date().toISOString()
+          };
+        }),
         createdAt: new Date().toISOString()
       };
       savePhraseSet(set);
@@ -109,7 +115,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       return;
     }
     setCardIndex((value) => value + 1);
-    setShowScript(false);
     setShowTranslation(false);
     setHistory([]);
     setStage("listen");
@@ -128,7 +133,7 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         subtitle={ja ? `${dayIndex === 1 ? 10 : 20}個の未履修フレーズを、自分ごとの文にします。` : `Generate ${dayIndex === 1 ? 10 : 20} new personalized phrase cards.`}
         footer={<button className="btn-primary" onClick={() => void generatePhraseSet()}>{ja ? "生成して始める" : "Generate and Start"}</button>}
       >
-        <p className="text-sm text-slate-700">{ja ? "最初は音声だけを聞き、必要ならタップでスクリプトと訳を開けます。" : "You listen first, then reveal the script and translation only when needed."}</p>
+        <p className="text-sm text-slate-700">{ja ? "スクリプトを見ながら進めます。訳だけ必要なときに開けます。" : "You keep the script visible and reveal the translation only when needed."}</p>
         {error && <p className="text-sm text-rose-700">{error}</p>}
         <DebugBlock feature="phrases" />
       </CardShell>
@@ -147,7 +152,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
               <button className="btn-secondary" onClick={() => void playText(`phrase-listen:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
                 {playingKey === `phrase-listen:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を聞く" : "Play Audio"}
               </button>
-              <button className="btn-secondary" onClick={() => setShowScript((value) => !value)}>{showScript ? (ja ? "スクリプトを隠す" : "Hide Script") : ja ? "スクリプトを見る" : "Show Script"}</button>
               <button className="btn-secondary" onClick={() => setShowTranslation((value) => !value)}>{showTranslation ? (ja ? "訳を隠す" : "Hide Translation") : ja ? "訳を見る" : "Show Translation"}</button>
               <button className="btn-primary" onClick={() => setStage("strong")}>{ja ? "色付けへ" : "Mark Rhythm"}</button>
             </>
@@ -189,6 +193,9 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
               <button className="btn-secondary" onClick={() => void playText(`phrase-review:${reviewCard.id}`, reviewCard.segment.text, reviewCard.segment.voice)}>
                 {playingKey === `phrase-review:${reviewCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
               </button>
+              <button className="btn-secondary" onClick={() => setShowTranslation((value) => !value)}>
+                {showTranslation ? (ja ? "訳を隠す" : "Hide Translation") : ja ? "訳を見る" : "Show Translation"}
+              </button>
               <button
                 className="btn-primary"
                 onClick={() => {
@@ -197,6 +204,7 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
                     return;
                   }
                   setReviewIndex((value) => value + 1);
+                  setShowTranslation(false);
                 }}
               >
                 {reviewIndex >= phraseSet.cards.length - 1 ? (ja ? "Oxford Phrase を完了" : "Finish Phrases") : ja ? "次へ" : "Next"}
@@ -211,7 +219,7 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       {activeCard && stage === "listen" && (
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-wide text-slate-400">{activeCard.original}</p>
-          {showScript ? <p className="text-2xl font-black text-slate-900">{activeCard.personalized}</p> : <p className="text-lg text-slate-500">{ja ? "まずは音声だけで聞きます。" : "Listen first before revealing the text."}</p>}
+          <p className="text-2xl font-black text-slate-900">{activeCard.personalized}</p>
           {showTranslation && <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{activeCard.translation}</p>}
         </div>
       )}
@@ -227,7 +235,7 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
           <p className="text-xs text-slate-500">{ja ? `復習 ${reviewIndex + 1} / ${phraseSet.cards.length}` : `Review ${reviewIndex + 1} / ${phraseSet.cards.length}`}</p>
           <p className="text-xs uppercase tracking-wide text-slate-400">{reviewCard.original}</p>
           <TokenEditor segment={reviewCard.segment} editable={false} />
-          <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{reviewCard.translation}</p>
+          {showTranslation && <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{reviewCard.translation}</p>}
         </div>
       )}
     </CardShell>

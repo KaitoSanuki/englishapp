@@ -45,10 +45,11 @@ Oxford Phrase List のフレーズを、ユーザーの今週のテーマに引�
 - 1分スピーチ: ${args.speechScript}
 - 必要個数: ${args.count}
 - 候補フレーズ:
-${args.candidates.map((item, index) => `${index + 1}. [${item.cefr}] ${item.phrase}`).join("\n")}
+${args.candidates.map((item, index) => `${index + 1}. bankId=${item.id} [${item.cefr}] ${item.phrase}`).join("\n")}
 
 要件:
 - 候補フレーズをそのまま使い、別のフレーズに差し替えない
+- bankId は候補一覧に書かれているものを、そのまま正確に返す
 - 自分ごとフレーズは、テーマに合う自然な1文にする
 - 英語はCEFR ${args.cefr === "C2" ? "C1" : args.cefr} 以下で自然にする
 - 日本語訳は短くわかりやすくする
