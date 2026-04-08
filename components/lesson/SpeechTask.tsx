@@ -5,7 +5,7 @@ import { useAppState } from "@/lib/app-state";
 import { splitSentences, makeSegment } from "@/lib/lesson-utils";
 import { AnnotatedToken, CEFR, SpeechMaterial } from "@/lib/types";
 import { jsonPost } from "@/components/lesson/api";
-import { CardShell, DebugBlock, SegmentTextBlock, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { CardShell, DebugBlock, ScriptPreview, SegmentTextBlock, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, state, saveWeekMeta, saveSpeech, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
@@ -179,7 +179,7 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
           </>
         }
       >
-        {stage === "intro" && <SegmentTextBlock segments={speech.segments} />}
+        {stage === "intro" && <ScriptPreview text={speech.scriptText} />}
         {stage === "review" && segment && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">{ja ? `文 ${sentenceIndex + 1} / ${speech.segments.length}` : `Sentence ${sentenceIndex + 1} / ${speech.segments.length}`}</p>
@@ -244,7 +244,7 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       }
     >
       <DebugBlock feature="speech" />
-      {stage === "intro" && <SegmentTextBlock segments={speech.segments} />}
+      {stage === "intro" && <ScriptPreview text={speech.scriptText} />}
       {(stage === "strong" || stage === "weak" || stage === "confirm" || stage === "overlap") && (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">{ja ? `文 ${sentenceIndex + 1} / ${speech.segments.length}` : `Sentence ${sentenceIndex + 1} / ${speech.segments.length}`}</p>

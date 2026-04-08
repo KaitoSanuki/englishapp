@@ -142,6 +142,20 @@ export function SegmentTextBlock({ segments }: { segments: LessonSegment[] }) {
   );
 }
 
+export function ScriptPreview({
+  text,
+  maxHeightClass = "max-h-[55vh]"
+}: {
+  text: string;
+  maxHeightClass?: string;
+}) {
+  return (
+    <div className={`overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 ${maxHeightClass}`}>
+      <p className="whitespace-pre-wrap break-words text-base leading-8 text-slate-900">{text}</p>
+    </div>
+  );
+}
+
 export function FullTranscript({
   turns,
   currentIndex,
