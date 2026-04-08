@@ -53,12 +53,23 @@ export function CardShell({
 }
 
 export function DebugBlock({ feature }: { feature: string }) {
-  const { state, canUseAdminMode } = useAppState();
+  const { state, canUseAdminMode, setAdminDebugEnabled } = useAppState();
   const ja = state.language === "ja";
   const [open, setOpen] = useState(false);
   const trace = state.debugTraces.find((item) => item.feature === feature);
 
-  if (!canUseAdminMode || !state.prefs.adminDebugEnabled || !trace) return null;
+  if (!canUseAdminMode || !trace) return null;
+
+  if (!state.prefs.adminDebugEnabled) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+        <p className="text-sm text-amber-900">{ja ? "この生成のプロンプトを確認できます。" : "You can inspect the prompt for this generation."}</p>
+        <button className="mt-2 text-sm font-semibold text-amber-900" onClick={() => setAdminDebugEnabled(true)}>
+          {ja ? "ここでデバッグ表示を有効にする" : "Enable debug here"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
@@ -91,18 +102,24 @@ export function TokenEditor({
   onTokenTap?: (tokenId: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-lg leading-8 text-slate-900">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-lg leading-8 text-slate-900 whitespace-pre-wrap break-words">
       {segment.tokens.map((token) => {
         const style = getTokenStyle(token.weight);
         const clickable = editable && token.kind === "word";
+        if (!clickable) {
+          return (
+            <span key={token.id} style={style}>
+              {token.text}
+            </span>
+          );
+        }
         return (
           <button
             key={token.id}
             type="button"
-            disabled={!clickable}
-            className={clickable ? "cursor-pointer" : "cursor-default"}
-            onClick={() => clickable && onTokenTap?.(token.id)}
-            style={{ ...style, background: "transparent", border: "none", padding: 0 }}
+            className="cursor-pointer"
+            onClick={() => onTokenTap?.(token.id)}
+            style={{ ...style, background: "transparent", border: "none", padding: 0, display: "inline" }}
           >
             {token.text}
           </button>

@@ -76,8 +76,8 @@ export function ExternalChatTask({ dayIndex, onDone }: { dayIndex: number; onDon
         </>
       }
     >
-      <textarea className="input min-h-72 text-slate-900" value={prompt.promptText} readOnly />
       <DebugBlock feature="external_chat" />
+      <textarea className="input min-h-72 text-slate-900" value={prompt.promptText} readOnly />
     </CardShell>
   );
 }

@@ -206,6 +206,7 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         </>
       }
     >
+      <DebugBlock feature="phrases" />
       {stage === "intro" && <p className="text-sm text-slate-700">{ja ? "1カードずつ、音声 → 色付け → オーバーラッピングで進めます。" : "You will go card by card: audio, rhythm marking, then overlap."}</p>}
       {activeCard && stage === "listen" && (
         <div className="space-y-3">
@@ -229,7 +230,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
           <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{reviewCard.translation}</p>
         </div>
       )}
-      <DebugBlock feature="phrases" />
     </CardShell>
   );
 }

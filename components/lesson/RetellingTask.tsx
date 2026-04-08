@@ -235,6 +235,8 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
         </>
       }
     >
+      <DebugBlock feature="retell_keywords" />
+      <DebugBlock feature="retell_correction" />
       {stage === "intro" && <p className="text-sm text-slate-700">{ja ? "最初にキーワードを一覧で確認してから、3分・2分・1分の順で話します。" : "You first review the ordered keyword list, then retell in 3, 2, and 1 minute."}</p>}
       {stage === "keywords" && session && (
         <div className="space-y-3">
@@ -274,8 +276,6 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
         </div>
       )}
       {error && <p className="text-sm text-rose-700">{error}</p>}
-      <DebugBlock feature="retell_keywords" />
-      <DebugBlock feature="retell_correction" />
     </CardShell>
   );
 }

@@ -80,6 +80,7 @@ export default function ProfilePage() {
                 : "You are currently using guest mode."}
           </p>
           <p>{ja ? `プラン: ${auth.plan.toUpperCase()}` : `Plan: ${auth.plan.toUpperCase()}`}</p>
+          {auth.mode === "user" && <p>{ja ? `権限: ${canUseAdminMode ? "ADMIN" : "USER"}` : `Role: ${canUseAdminMode ? "ADMIN" : "USER"}`}</p>}
           {auth.mode === "guest" && (
             <p className="text-slate-600">{ja ? `体験版の完了日数: ${guestDays} / 3` : `Guest trial days completed: ${guestDays} / 3`}</p>
           )}

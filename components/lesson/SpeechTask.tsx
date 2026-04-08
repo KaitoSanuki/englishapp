@@ -243,6 +243,7 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         </>
       }
     >
+      <DebugBlock feature="speech" />
       {stage === "intro" && <SegmentTextBlock segments={speech.segments} />}
       {(stage === "strong" || stage === "weak" || stage === "confirm" || stage === "overlap") && (
         <div className="space-y-3">
@@ -251,7 +252,6 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         </div>
       )}
       {stage === "full" && <SegmentTextBlock segments={speech.segments} />}
-      <DebugBlock feature="speech" />
     </CardShell>
   );
 }

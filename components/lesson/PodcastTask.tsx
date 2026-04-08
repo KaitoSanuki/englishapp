@@ -168,6 +168,7 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
         </>
       }
     >
+      <DebugBlock feature="podcast" />
       {stage === "intro" && (
         <div className="space-y-3">
           <p className="text-sm text-slate-700">{ja ? "内容はまず音でつかみます。通しで聞いたあと、1ターンずつオーバーラッピングします。" : "Catch the content first through audio. After the full listen, you will overlap turn by turn."}</p>
@@ -181,7 +182,6 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
           <p className="text-sm text-slate-500">{ja ? `${turnIndex + 1} / ${episode.turns.length} ターン` : `Turn ${turnIndex + 1} / ${episode.turns.length}`}</p>
         </div>
       )}
-      <DebugBlock feature="podcast" />
     </CardShell>
   );
 }
