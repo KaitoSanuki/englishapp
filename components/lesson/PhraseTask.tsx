@@ -1,17 +1,13 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
-import { phraseBank } from "@/lib/phrase-bank";
-import { pickPhraseCandidates, makeSegment } from "@/lib/lesson-utils";
-import { AnnotatedToken, PhraseCard, PhraseSet } from "@/lib/types";
-import { jsonPost } from "@/components/lesson/api";
+import { ensurePhraseSetReady, ensurePodcastReady, prewarmPhraseAudio } from "@/lib/lesson-preload";
+import { AnnotatedToken, PhraseCard } from "@/lib/types";
 import { CardShell, DebugBlock, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
-const normalizePhrase = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
-
 export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, state, savePhraseSet, incrementPhraseUsage, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
   const ja = state.language === "ja";
   const speech = activeWeek.speech;
   const phraseSet = activeWeek.phraseSets.find((item) => item.dayIndex === dayIndex);
@@ -21,10 +17,60 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   const [showTranslation, setShowTranslation] = useState(false);
   const [history, setHistory] = useState<AnnotatedToken[][]>([]);
   const [error, setError] = useState("");
+  const [autoPreparing, setAutoPreparing] = useState(false);
   const { playingKey, playText } = useAudioPlayback();
 
   const activeCard = phraseSet?.cards[cardIndex];
   const reviewCard = phraseSet?.cards[reviewIndex];
+
+  useEffect(() => {
+    if (!speech || phraseSet) return;
+    let cancelled = false;
+    setAutoPreparing(true);
+    void ensurePhraseSetReady(
+      {
+        week: activeWeek,
+        auth,
+        phraseUsage: state.phraseUsage,
+        savePhraseSet,
+        incrementPhraseUsage,
+        addDebugTrace
+      },
+      dayIndex
+    )
+      .catch(() => {
+        // keep manual retry available
+      })
+      .finally(() => {
+        if (!cancelled) setAutoPreparing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [speech, phraseSet, activeWeek, auth, state.phraseUsage, savePhraseSet, incrementPhraseUsage, addDebugTrace, dayIndex]);
+
+  useEffect(() => {
+    if (!phraseSet) return;
+    let cancelled = false;
+    const run = async () => {
+      await prewarmPhraseAudio(phraseSet, auth);
+      if (cancelled || dayIndex > 5) return;
+      await ensurePodcastReady(
+        {
+          week: activeWeek,
+          auth,
+          prefs: state.prefs,
+          savePodcast,
+          addDebugTrace
+        },
+        dayIndex
+      );
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [phraseSet, auth, activeWeek, state.prefs, savePodcast, addDebugTrace, dayIndex]);
 
   const saveUpdatedCard = (updatedCard: PhraseCard) => {
     if (!phraseSet) return;
@@ -61,45 +107,20 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       return;
     }
     setError("");
-    const count = dayIndex === 1 ? 10 : 20;
-    const picked = pickPhraseCandidates(phraseBank, activeWeek.cefr, state.phraseUsage, count);
     const job = makeJob("phrases", dayIndex, ja ? "Oxford Phrase を生成しています" : "Generating phrases", 2);
     setCurrentJob(job);
     try {
-      const generated = await jsonPost<{ items: Array<{ bankId: string; original: string; personalized: string; translation: string }> }>({
-        task: "phrases",
-        theme: activeWeek.theme,
-        speechScript: speech.scriptText,
-        cefr: activeWeek.cefr,
-        count,
-        candidates: picked.items
-      });
-      if (generated.debug) addDebugTrace(makeClientTrace(generated.debug));
-      const set: PhraseSet = {
-        id: crypto.randomUUID(),
-        weekId: activeWeek.id,
-        dayIndex,
-        cards: generated.data.items.map((item) => {
-          const matchedCandidate = picked.items.find(
-            (candidate) => candidate.id === item.bankId || normalizePhrase(candidate.phrase) === normalizePhrase(item.original)
-          );
-          return {
-            id: crypto.randomUUID(),
-            bankId: matchedCandidate?.id ?? item.bankId,
-            original: matchedCandidate?.phrase ?? item.original,
-            personalized: item.personalized,
-            translation: item.translation,
-            cefr: matchedCandidate?.cefr ?? "A1",
-            dayIndex,
-            cycle: picked.cycle,
-            segment: makeSegment(item.personalized, activeWeek.podcastUserVoice, "user"),
-            createdAt: new Date().toISOString()
-          };
-        }),
-        createdAt: new Date().toISOString()
-      };
-      savePhraseSet(set);
-      incrementPhraseUsage(set.cards.map((card) => card.bankId));
+      await ensurePhraseSetReady(
+        {
+          week: activeWeek,
+          auth,
+          phraseUsage: state.phraseUsage,
+          savePhraseSet,
+          incrementPhraseUsage,
+          addDebugTrace
+        },
+        dayIndex
+      );
       setCurrentJob(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : ja ? "生成に失敗しました。" : "Generation failed.");
@@ -131,7 +152,11 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       <CardShell
         title={ja ? "Oxford Phrase を準備します" : "Prepare Oxford Phrase"}
         subtitle={ja ? `${dayIndex === 1 ? 10 : 20}個の未履修フレーズを、自分ごとの文にします。` : `Generate ${dayIndex === 1 ? 10 : 20} new personalized phrase cards.`}
-        footer={<button className="btn-primary" onClick={() => void generatePhraseSet()}>{ja ? "生成して始める" : "Generate and Start"}</button>}
+        footer={
+          <button className="btn-primary" onClick={() => void generatePhraseSet()} disabled={autoPreparing}>
+            {autoPreparing ? (ja ? "裏で準備しています..." : "Preparing in the background...") : ja ? "生成して始める" : "Generate and Start"}
+          </button>
+        }
       >
         <p className="text-sm text-slate-700">{ja ? "スクリプトを見ながら進めます。訳だけ必要なときに開けます。" : "You keep the script visible and reveal the translation only when needed."}</p>
         {error && <p className="text-sm text-rose-700">{error}</p>}

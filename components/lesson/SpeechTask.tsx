@@ -1,14 +1,15 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
+import { ensurePhraseSetReady, ensurePodcastReady, prewarmSpeechAudio } from "@/lib/lesson-preload";
 import { splitSentences, makeSegment } from "@/lib/lesson-utils";
 import { AnnotatedToken, CEFR, SpeechMaterial } from "@/lib/types";
 import { jsonPost } from "@/components/lesson/api";
 import { AnnotatedScriptPreview, CardShell, DebugBlock, ScriptPreview, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, state, saveWeekMeta, saveSpeech, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, saveWeekMeta, saveSpeech, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
   const ja = state.language === "ja";
   const [theme, setTheme] = useState(activeWeek.theme);
   const [note, setNote] = useState(activeWeek.note);
@@ -21,6 +22,41 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   const [error, setError] = useState("");
   const { playingKey, playText, playSequence } = useAudioPlayback();
   const speech = activeWeek.speech;
+
+  useEffect(() => {
+    if (!speech) return;
+    let cancelled = false;
+    const run = async () => {
+      await prewarmSpeechAudio(speech, auth);
+      if (cancelled || dayIndex > 4) return;
+      await ensurePhraseSetReady(
+        {
+          week: activeWeek,
+          auth,
+          phraseUsage: state.phraseUsage,
+          savePhraseSet,
+          incrementPhraseUsage,
+          addDebugTrace
+        },
+        dayIndex
+      );
+      if (cancelled) return;
+      await ensurePodcastReady(
+        {
+          week: activeWeek,
+          auth,
+          prefs: state.prefs,
+          savePodcast,
+          addDebugTrace
+        },
+        dayIndex
+      );
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [speech, auth, activeWeek, state.phraseUsage, state.prefs, dayIndex, savePhraseSet, incrementPhraseUsage, savePodcast, addDebugTrace]);
 
   const updateSegmentTokens = (index: number, tokens: AnnotatedToken[]) => {
     if (!speech) return;

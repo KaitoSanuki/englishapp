@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAppState } from "@/lib/app-state";
+import { ensureExternalPromptReady, ensurePhraseSetReady, ensurePodcastReady, ensureRetellingKeywordsReady, prewarmCorrectionAudio } from "@/lib/lesson-preload";
 import { buildKeywordPreview, makeSegment } from "@/lib/lesson-utils";
 import { RetellingKeywordLine, RetellingSession } from "@/lib/types";
 import { blobToDataUrl, jsonPost, transcribeBlob } from "@/components/lesson/api";
@@ -14,7 +15,7 @@ const roundDurations = [
 ];
 
 export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, state, saveRetelling, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, savePhraseSet, incrementPhraseUsage, savePodcast, saveRetelling, saveExternalPrompt, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
   const ja = state.language === "ja";
   const speech = activeWeek.speech;
   const session = activeWeek.retellings.find((item) => item.dayIndex === dayIndex);
@@ -26,11 +27,90 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
   const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
   const [recordingUrl, setRecordingUrl] = useState("");
   const [error, setError] = useState("");
+  const [autoPreparing, setAutoPreparing] = useState(false);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const { playingKey, playText } = useAudioPlayback();
 
   const currentRound = roundDurations[roundIndex];
+
+  useEffect(() => {
+    if (!speech) return;
+    let cancelled = false;
+    setAutoPreparing(true);
+    const run = async () => {
+      await ensureRetellingKeywordsReady(
+        {
+          week: activeWeek,
+          auth,
+          saveRetelling,
+          addDebugTrace
+        },
+        dayIndex
+      );
+      if (cancelled) return;
+      if (dayIndex === 5) {
+        await ensurePhraseSetReady(
+          {
+            week: activeWeek,
+            auth,
+            phraseUsage: state.phraseUsage,
+            savePhraseSet,
+            incrementPhraseUsage,
+            addDebugTrace
+          },
+          dayIndex
+        );
+        if (cancelled) return;
+        await ensurePodcastReady(
+          {
+            week: activeWeek,
+            auth,
+            prefs: state.prefs,
+            savePodcast,
+            addDebugTrace
+          },
+          dayIndex
+        );
+        return;
+      }
+      await ensureExternalPromptReady(
+        {
+          week: activeWeek,
+          auth,
+          saveExternalPrompt,
+          addDebugTrace
+        },
+        dayIndex as 6 | 7
+      );
+      if (cancelled) return;
+      await ensurePodcastReady(
+        {
+          week: activeWeek,
+          auth,
+          prefs: state.prefs,
+          savePodcast,
+          addDebugTrace
+        },
+        dayIndex
+      );
+    };
+    void run()
+      .catch(() => {
+        // keep manual retry available
+      })
+      .finally(() => {
+        if (!cancelled) setAutoPreparing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [speech, dayIndex, activeWeek, auth, state.phraseUsage, state.prefs, savePhraseSet, incrementPhraseUsage, savePodcast, saveRetelling, saveExternalPrompt, addDebugTrace]);
+
+  useEffect(() => {
+    if (!session?.correctionText) return;
+    void prewarmCorrectionAudio(session, activeWeek.podcastUserVoice, auth);
+  }, [session, activeWeek.podcastUserVoice, auth]);
 
   useEffect(() => {
     setRemaining(currentRound.seconds);
@@ -52,15 +132,6 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
     return () => window.clearInterval(id);
   }, [running]);
 
-  const buildSession = (keywordLines: RetellingKeywordLine[]): RetellingSession => ({
-    id: crypto.randomUUID(),
-    weekId: activeWeek.id,
-    dayIndex,
-    keywordLines,
-    rounds: roundDurations.map((round) => ({ mode: round.mode, retries: 0 })),
-    createdAt: new Date().toISOString()
-  });
-
   const prepareKeywords = async () => {
     if (!speech) {
       setError(ja ? "先に1分スピーチを作成してください。" : "Create the speech first.");
@@ -74,11 +145,17 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
     const job = makeJob("retelling_keywords", dayIndex, ja ? "キーワードを作っています" : "Generating keywords", 1);
     setCurrentJob(job);
     try {
-      const generated = await jsonPost<{ lines: Array<{ sourceText: string; keywords: string[] }> }>({ task: "retell_keywords", sourceText: speech.scriptText });
-      if (generated.debug) addDebugTrace(makeClientTrace(generated.debug));
-      const next = buildSession(generated.data.lines.map((line) => ({ id: crypto.randomUUID(), sourceText: line.sourceText, keywords: line.keywords })));
-      saveRetelling(next);
+      const next = await ensureRetellingKeywordsReady(
+        {
+          week: activeWeek,
+          auth,
+          saveRetelling,
+          addDebugTrace
+        },
+        dayIndex
+      );
       setCurrentJob(undefined);
+      if (next) setStage("keywords");
       setStage("keywords");
     } catch (err) {
       setError(err instanceof Error ? err.message : ja ? "生成に失敗しました。" : "Generation failed.");
@@ -198,7 +275,7 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
       subtitle={ja ? "キーワードはその日だけ固定です。最後の1分だけ文字起こしと添削に回します。" : "Keywords stay fixed for the day. Only the final accepted 1-minute recording is transcribed and corrected."}
       footer={
         <>
-          {stage === "intro" && <button className="btn-primary" onClick={() => void prepareKeywords()}>{ja ? "キーワードを準備する" : "Prepare Keywords"}</button>}
+          {stage === "intro" && <button className="btn-primary" onClick={() => void prepareKeywords()} disabled={autoPreparing}>{autoPreparing ? (ja ? "裏で準備しています..." : "Preparing in the background...") : ja ? "キーワードを準備する" : "Prepare Keywords"}</button>}
           {stage === "keywords" && session && <button className="btn-primary" onClick={() => setStage("rounds")}>{ja ? "3分から始める" : "Start with 3 Minutes"}</button>}
           {stage === "rounds" && (
             <>
@@ -237,7 +314,7 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
     >
       <DebugBlock feature="retell_keywords" />
       <DebugBlock feature="retell_correction" />
-      {stage === "intro" && <p className="text-sm text-slate-700">{ja ? "最初にキーワードを一覧で確認してから、3分・2分・1分の順で話します。" : "You first review the ordered keyword list, then retell in 3, 2, and 1 minute."}</p>}
+      {stage === "intro" && <p className="text-sm text-slate-700">{autoPreparing ? (ja ? "キーワードと次の教材を裏で準備しています。" : "Preparing the keywords and later materials in the background.") : ja ? "最初にキーワードを一覧で確認してから、3分・2分・1分の順で話します。" : "You first review the ordered keyword list, then retell in 3, 2, and 1 minute."}</p>}
       {stage === "keywords" && session && (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">{ja ? "キーワード一覧" : "Keyword List"}</p>

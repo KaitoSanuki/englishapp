@@ -1,13 +1,12 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
-import { jsonPost } from "@/components/lesson/api";
-import { CardShell, DebugBlock, FullTranscript, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
-import { PodcastEpisode } from "@/lib/types";
+import { ensurePodcastReady, prewarmPodcastAudio } from "@/lib/lesson-preload";
+import { CardShell, DebugBlock, FullTranscript, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, state, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
   const ja = state.language === "ja";
   const speech = activeWeek.speech;
   const episode = activeWeek.podcasts.find((item) => item.dayIndex === dayIndex);
@@ -16,7 +15,38 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
   const [transcriptVisible, setTranscriptVisible] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [error, setError] = useState("");
+  const [autoPreparing, setAutoPreparing] = useState(false);
   const { playingKey, playText, playSequence, stop } = useAudioPlayback();
+
+  useEffect(() => {
+    if (!speech || episode) return;
+    let cancelled = false;
+    setAutoPreparing(true);
+    void ensurePodcastReady(
+      {
+        week: activeWeek,
+        auth,
+        prefs: state.prefs,
+        savePodcast,
+        addDebugTrace
+      },
+      dayIndex
+    )
+      .catch(() => {
+        // keep manual retry available
+      })
+      .finally(() => {
+        if (!cancelled) setAutoPreparing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [speech, episode, activeWeek, auth, state.prefs, savePodcast, addDebugTrace, dayIndex]);
+
+  useEffect(() => {
+    if (!episode) return;
+    void prewarmPodcastAudio(episode, auth);
+  }, [episode, auth]);
 
   const generatePodcast = async () => {
     if (!speech) {
@@ -27,32 +57,16 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
     const job = makeJob("podcast", dayIndex, ja ? "Podcast を生成しています" : "Generating podcast", 1);
     setCurrentJob(job);
     try {
-      const previousTitle = activeWeek.podcasts.find((item) => item.dayIndex === dayIndex - 1)?.title;
-      const generated = await jsonPost<{ title: string; turns: Array<{ speaker: "Partner" | "User"; text: string }> }>({
-        task: "podcast",
-        theme: activeWeek.theme,
-        note: activeWeek.note,
-        speechScript: speech.scriptText,
-        dayIndex,
-        previousTitle,
-        userVoiceGender: state.prefs.podcastUserGender
-      });
-      if (generated.debug) addDebugTrace(makeClientTrace(generated.debug));
-      const nextEpisode: PodcastEpisode = {
-        id: crypto.randomUUID(),
-        weekId: activeWeek.id,
-        dayIndex,
-        title: generated.data.title,
-        wordCount: generated.data.turns.reduce((sum, turn) => sum + (turn.text.match(/[A-Za-z0-9']+/g) ?? []).length, 0),
-        turns: generated.data.turns.map((turn) => ({
-          id: crypto.randomUUID(),
-          speaker: turn.speaker,
-          text: turn.text,
-          voice: turn.speaker === "Partner" ? activeWeek.podcastPartnerVoice : activeWeek.podcastUserVoice
-        })),
-        createdAt: new Date().toISOString()
-      };
-      savePodcast(nextEpisode);
+      await ensurePodcastReady(
+        {
+          week: activeWeek,
+          auth,
+          prefs: state.prefs,
+          savePodcast,
+          addDebugTrace
+        },
+        dayIndex
+      );
       setCurrentJob(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : ja ? "生成に失敗しました。" : "Generation failed.");
@@ -87,7 +101,11 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
       <CardShell
         title="Podcast"
         subtitle={ja ? `Day ${dayIndex} の会話エピソードを準備します。` : `Prepare the Day ${dayIndex} conversation episode.`}
-        footer={<button className="btn-primary" onClick={() => void generatePodcast()}>{ja ? "生成して始める" : "Generate and Start"}</button>}
+        footer={
+          <button className="btn-primary" onClick={() => void generatePodcast()} disabled={autoPreparing}>
+            {autoPreparing ? (ja ? "裏で準備しています..." : "Preparing in the background...") : ja ? "生成して始める" : "Generate and Start"}
+          </button>
+        }
       >
         <p className="text-sm text-slate-700">{ja ? "最初の案内ではネタバレせず、聞く段階で内容をつかみます。" : "The intro stays spoiler-free. You discover the content by listening first."}</p>
         {error && <p className="text-sm text-rose-700">{error}</p>}
