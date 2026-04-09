@@ -65,10 +65,14 @@ export default function HomePage() {
   const ja = state.language === "ja";
 
   const nextUserDay = useMemo(() => activeWeek.dayStatuses.find((status) => !status.completed)?.dayIndex ?? 8, [activeWeek.dayStatuses]);
-  const nextGuestDay = useMemo(() => guestSampleDays.find((day) => !state.guestTrial.completedDayIndices.includes(day)) ?? null, [state.guestTrial.completedDayIndices]);
-  const targetDay = auth.mode === "guest" ? nextGuestDay : nextUserDay <= 7 ? nextUserDay : null;
-  const trialEnded = auth.mode === "guest" && nextGuestDay === null;
-  const weekCompleted = auth.mode === "user" && targetDay === null;
+  const isLimitedFreePlan = auth.plan === "free";
+  const nextFreePlanDay = useMemo(
+    () => guestSampleDays.find((day) => !activeWeek.dayStatuses.find((status) => status.dayIndex === day)?.completed) ?? null,
+    [activeWeek.dayStatuses]
+  );
+  const targetDay = isLimitedFreePlan ? nextFreePlanDay : nextUserDay <= 7 ? nextUserDay : null;
+  const trialEnded = isLimitedFreePlan && targetDay === null;
+  const weekCompleted = auth.mode === "user" && auth.plan !== "free" && targetDay === null;
   const previewTasks = targetDay ? dayTaskMap[targetDay] : [];
   const labels = ja ? dayTaskLabels.ja : dayTaskLabels.en;
 
@@ -131,11 +135,17 @@ export default function HomePage() {
         <section className="glass rounded-xl2 p-4 space-y-3">
           <h2 className="text-lg font-black text-slate-900">{ja ? "体験版はここまでです" : "The Trial Ends Here"}</h2>
           <p className="text-sm text-slate-700">
-            {ja ? "Day1・Day5・Day6 の体験が完了しました。続けるにはアカウントを作成してください。" : "You completed the Day 1, Day 5, and Day 6 trial lessons. Create an account to continue."}
+            {auth.mode === "guest"
+              ? ja
+                ? "Day1・Day5・Day6 の体験が完了しました。続けるにはアカウントを作成してください。"
+                : "You completed the Day 1, Day 5, and Day 6 trial lessons. Create an account to continue."
+              : ja
+                ? "FREEプランでは Day1・Day5・Day6 まで体験できます。続けるには PRO プランに切り替えてください。"
+                : "The free plan includes Day 1, Day 5, and Day 6. Switch to Pro to continue."}
           </p>
           <div className="flex flex-wrap gap-2">
             <Link className="btn-primary" href="/profile">
-              {ja ? "アカウントを作成・ログイン" : "Create Account / Sign In"}
+              {auth.mode === "guest" ? (ja ? "アカウントを作成・ログイン" : "Create Account / Sign In") : ja ? "設定を開く" : "Open Settings"}
             </Link>
           </div>
         </section>
