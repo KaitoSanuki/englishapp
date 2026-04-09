@@ -4,6 +4,7 @@ import { isSupabaseEnabled, supabaseGeneratedSpeechPath, supabasePublicAudioUrl,
 
 const CACHE_NAME = "english-loop-openai-audio-v2";
 const inFlight = new Map<string, Promise<Blob | null>>();
+const cloudBackfill = new Map<string, Promise<void>>();
 
 type CloudAudioScope = {
   userId: string;
@@ -31,20 +32,45 @@ const saveToBrowserCache = async (request: Request, blob: Blob) => {
   await cache.put(request, new Response(blob, { headers: { "Content-Type": blob.type || "audio/mpeg" } }));
 };
 
+const syncCachedBlobToCloud = (key: string, cloudScope: CloudAudioScope | undefined, voice: string, hash: string, blob: Blob) => {
+  if (!cloudScope?.userId || !cloudScope.accessToken || !isSupabaseEnabled()) return;
+  const running = cloudBackfill.get(key);
+  if (running) return;
+  const promise = supabaseUploadGeneratedAudio({
+    accessToken: cloudScope.accessToken,
+    userId: cloudScope.userId,
+    voice,
+    hash,
+    blob
+  })
+    .then(() => undefined)
+    .catch(() => {
+      // Keep playback working even if cloud sync fails.
+    })
+    .finally(() => {
+      cloudBackfill.delete(key);
+    });
+  cloudBackfill.set(key, promise);
+};
+
 export const getSpeechBlob = async (text: string, voice: string, cloudScope?: CloudAudioScope, options?: SpeechBlobOptions) => {
   const clean = text.trim();
   if (!clean) return null;
   const allowGenerate = options?.allowGenerate ?? true;
+  const hash = hashText(clean);
+  const key = `${cloudScope?.userId ?? "guest"}:${voice}:${hash}`;
 
   const request = cacheRequest(voice, clean);
   if (typeof window !== "undefined" && "caches" in window) {
     const cache = await caches.open(CACHE_NAME);
     const cached = await cache.match(request);
-    if (cached) return cached.blob();
+    if (cached) {
+      const blob = await cached.blob();
+      syncCachedBlobToCloud(key, cloudScope, voice, hash, blob);
+      return blob;
+    }
   }
 
-  const hash = hashText(clean);
-  const key = `${cloudScope?.userId ?? "guest"}:${voice}:${hash}`;
   const running = inFlight.get(key);
   if (running) return running;
 
@@ -78,19 +104,7 @@ export const getSpeechBlob = async (text: string, voice: string, cloudScope?: Cl
 
     const blob = await res.blob();
 
-    if (cloudScope?.userId && cloudScope.accessToken && isSupabaseEnabled()) {
-      try {
-        await supabaseUploadGeneratedAudio({
-          accessToken: cloudScope.accessToken,
-          userId: cloudScope.userId,
-          voice,
-          hash,
-          blob
-        });
-      } catch {
-        // Keep playback working even if cloud upload fails.
-      }
-    }
+    syncCachedBlobToCloud(key, cloudScope, voice, hash, blob);
 
     await saveToBrowserCache(request, blob);
     return blob;
