@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { ensureExternalPromptReady, ensurePodcastReady } from "@/lib/lesson-preload";
-import { CardShell, DebugBlock, makeJob } from "@/components/lesson/ui";
+import { CardShell, makeJob } from "@/components/lesson/ui";
 
 export function ExternalChatTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, auth, state, saveExternalPrompt, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
@@ -92,7 +92,6 @@ export function ExternalChatTask({ dayIndex, onDone }: { dayIndex: number; onDon
       >
         <p className="text-sm text-slate-700">{ja ? "会話自体は外部アプリで行い、このアプリではプロンプトだけ用意します。" : "The conversation happens outside this app. Here we only prepare the prompt."}</p>
         {error && <p className="text-sm text-rose-700">{error}</p>}
-        <DebugBlock feature="external_chat" />
       </CardShell>
     );
   }
@@ -110,7 +109,6 @@ export function ExternalChatTask({ dayIndex, onDone }: { dayIndex: number; onDon
         </>
       }
     >
-      <DebugBlock feature="external_chat" />
       <textarea className="input min-h-72 text-slate-900" value={prompt.promptText} readOnly />
     </CardShell>
   );

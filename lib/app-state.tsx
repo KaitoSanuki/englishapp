@@ -41,6 +41,18 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
   .split(",")
   .map((value) => value.trim().toLowerCase())
   .filter(Boolean);
+const DEBUG_TRACE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const DEBUG_TRACE_LIMIT = 200;
+
+const pruneDebugTraces = (traces: DebugTrace[] = []) => {
+  const cutoff = Date.now() - DEBUG_TRACE_RETENTION_MS;
+  return traces
+    .filter((trace) => {
+      const createdAt = Date.parse(trace.createdAt);
+      return Number.isFinite(createdAt) && createdAt >= cutoff;
+    })
+    .slice(0, DEBUG_TRACE_LIMIT);
+};
 
 const choose = <T,>(items: readonly T[]) => items[Math.floor(Math.random() * items.length)] ?? items[0];
 
@@ -86,12 +98,13 @@ const toLocalSnapshot = (input: AppState): AppState => ({
   ...input,
   lessonFocusActive: false,
   currentJob: undefined,
-  debugTraces: []
+  debugTraces: pruneDebugTraces(input.debugTraces)
 });
 
 const toCloudSnapshot = (input: AppState): AppState => ({
   ...toLocalSnapshot(input),
-  lessonSession: undefined
+  lessonSession: undefined,
+  debugTraces: []
 });
 
 type AppStateContextType = {
@@ -148,7 +161,7 @@ const hydrateState = (input?: Partial<AppState> | null): AppState => {
     currentJob: undefined,
     phraseUsage: input?.phraseUsage ?? {},
     guestTrial: input?.guestTrial ?? defaultGuestTrial,
-    debugTraces: []
+    debugTraces: pruneDebugTraces(input?.debugTraces ?? [])
   };
 };
 
@@ -187,7 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const remote = await supabaseLoadSnapshot(userId, token);
     if (remote) {
       const hydrated = hydrateState(remote);
-      setState(hydrated);
+      setState((prev) => ({ ...hydrated, debugTraces: pruneDebugTraces(prev.debugTraces) }));
       lastSyncedRef.current = JSON.stringify(toCloudSnapshot(hydrated));
       cloudReadyRef.current = true;
       return;
@@ -424,8 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ),
         lessonFocusActive: false,
         lessonSession: undefined,
-        currentJob: undefined,
-        debugTraces: []
+        currentJob: undefined
       })),
     incrementPhraseUsage: (phraseIds) =>
       setState((prev) => ({
@@ -435,7 +447,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return acc;
         }, { ...prev.phraseUsage })
       })),
-    addDebugTrace: (trace) => setState((prev) => ({ ...prev, debugTraces: [trace, ...prev.debugTraces].slice(0, 25) })),
+    addDebugTrace: (trace) => {
+      if (auth.role !== "admin") return;
+      setState((prev) => {
+        if (!prev.prefs.adminDebugEnabled) return prev;
+        return { ...prev, debugTraces: pruneDebugTraces([trace, ...prev.debugTraces]) };
+      });
+    },
     clearDebugTraces: () => setState((prev) => ({ ...prev, debugTraces: [] })),
     markGuestTrialDay: (dayIndex) =>
       setState((prev) => ({

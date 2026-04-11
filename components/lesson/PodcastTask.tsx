@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { ensurePodcastReady, prewarmPodcastAudio } from "@/lib/lesson-preload";
-import { CardShell, DebugBlock, FullTranscript, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { CardShell, FullTranscript, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, auth, state, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
@@ -109,7 +109,6 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
       >
         <p className="text-sm text-slate-700">{ja ? "最初の案内ではネタバレせず、聞く段階で内容をつかみます。" : "The intro stays spoiler-free. You discover the content by listening first."}</p>
         {error && <p className="text-sm text-rose-700">{error}</p>}
-        <DebugBlock feature="podcast" />
       </CardShell>
     );
   }
@@ -186,7 +185,6 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
         </>
       }
     >
-      <DebugBlock feature="podcast" />
       {stage === "intro" && (
         <div className="space-y-3">
           <p className="text-sm text-slate-700">{ja ? "内容はまず音でつかみます。通しで聞いたあと、1ターンずつオーバーラッピングします。" : "Catch the content first through audio. After the full listen, you will overlap turn by turn."}</p>

@@ -52,50 +52,6 @@ export function CardShell({
   );
 }
 
-export function DebugBlock({ feature }: { feature: string }) {
-  const { state, canUseAdminMode, setAdminDebugEnabled } = useAppState();
-  const ja = state.language === "ja";
-  const [open, setOpen] = useState(false);
-  const trace = state.debugTraces.find((item) => item.feature === feature);
-
-  if (!canUseAdminMode || !trace) return null;
-
-  if (!state.prefs.adminDebugEnabled) {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-        <p className="text-sm text-amber-900">{ja ? "この生成のプロンプトを確認できます。" : "You can inspect the prompt for this generation."}</p>
-        <button className="mt-2 text-sm font-semibold text-amber-900" onClick={() => setAdminDebugEnabled(true)}>
-          {ja ? "ここでデバッグ表示を有効にする" : "Enable debug here"}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-      <button className="text-sm font-semibold text-amber-900" onClick={() => setOpen((value) => !value)}>
-        {open ? (ja ? "デバッグを閉じる" : "Hide Debug") : ja ? "デバッグを見る" : "Show Debug"}
-      </button>
-      {open && (
-        <div className="mt-3 max-h-[42vh] space-y-3 overflow-y-auto pr-1 text-xs text-slate-700">
-          <div>
-            <p className="font-semibold text-slate-900">Prompt</p>
-            <div className="mt-1 max-h-40 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
-              <pre className="whitespace-pre-wrap break-words">{trace.promptJa}</pre>
-            </div>
-          </div>
-          <div>
-            <p className="font-semibold text-slate-900">Parsed</p>
-            <div className="mt-1 max-h-40 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
-              <pre className="whitespace-pre-wrap break-words">{JSON.stringify(trace.parsedResponse, null, 2)}</pre>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function TokenEditor({
   segment,
   editable,

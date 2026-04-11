@@ -6,7 +6,7 @@ import { ensureExternalPromptReady, ensurePhraseSetReady, ensurePodcastReady, en
 import { buildKeywordPreview, makeSegment } from "@/lib/lesson-utils";
 import { RetellingKeywordLine, RetellingSession } from "@/lib/types";
 import { blobToDataUrl, jsonPost, transcribeBlob } from "@/components/lesson/api";
-import { CardShell, DebugBlock, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { CardShell, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 const roundDurations = [
   { mode: "3" as const, seconds: 180 },
@@ -312,8 +312,6 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
         </>
       }
     >
-      <DebugBlock feature="retell_keywords" />
-      <DebugBlock feature="retell_correction" />
       {stage === "intro" && <p className="text-sm text-slate-700">{autoPreparing ? (ja ? "キーワードと次の教材を裏で準備しています。" : "Preparing the keywords and later materials in the background.") : ja ? "最初にキーワードを一覧で確認してから、3分・2分・1分の順で話します。" : "You first review the ordered keyword list, then retell in 3, 2, and 1 minute."}</p>}
       {stage === "keywords" && session && (
         <div className="space-y-3">

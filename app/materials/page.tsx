@@ -101,9 +101,14 @@ export default function MaterialsPage() {
         }
       }
     }
+    for (const cards of map.values()) {
+      cards.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
     return map;
   }, [state.weeks]);
 
+  const selectedStampCards = selectedStamp ? phraseHistory.get(selectedStamp) ?? [] : [];
+  const selectedStampSource = selectedStamp ? phraseBank.find((item) => item.id === selectedStamp) : undefined;
   const currentCefrLimit = activeWeek.cefr === "C2" ? "C1" : activeWeek.cefr;
 
   return (
@@ -250,6 +255,33 @@ export default function MaterialsPage() {
                 ? "押されたスタンプをタップすると、そのフレーズの過去カードを見返せます。"
                 : "Tap a stamped phrase to review its past personalized cards."}
             </p>
+            {selectedStamp && (
+              <article className="rounded-2xl border border-accent/30 bg-white/90 p-4 space-y-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-slate-900">{ja ? "過去カード" : "Past Cards"}</h3>
+                    {selectedStampSource && <p className="text-xs text-slate-500">{selectedStampSource.phrase}</p>}
+                  </div>
+                  <button className="btn-secondary" onClick={() => setSelectedStamp(null)}>
+                    {ja ? "閉じる" : "Close"}
+                  </button>
+                </div>
+                <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
+                  {selectedStampCards.map((card) => (
+                    <div key={card.id} className="input space-y-2">
+                      <p className="text-xs text-slate-500">{card.cefr} / Day {card.dayIndex} / cycle {card.cycle}</p>
+                      <p className="text-xs text-slate-500">{card.original}</p>
+                      <p className="text-base font-bold text-slate-900">{card.personalized}</p>
+                      <p className="text-sm text-slate-700">{card.translation}</p>
+                      <SegmentText segment={card.segment} />
+                      <button className="btn-secondary" onClick={() => void playText(`phrase:${card.id}`, card.segment.text, card.segment.voice)}>
+                        {playingKey === `phrase:${card.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            )}
             {cefrs.map((cefr) => {
               const bankItems = phraseBank.filter((item) => item.cefr === cefr);
               const locked = cefrRank[cefr] > cefrRank[currentCefrLimit];
@@ -262,12 +294,15 @@ export default function MaterialsPage() {
                   <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
                     {bankItems.map((item) => {
                       const used = phraseHistory.get(item.id)?.length ?? 0;
+                      const selected = selectedStamp === item.id;
                       return (
                         <button
+                          type="button"
                           key={item.id}
                           className={`rounded-full border px-2 py-3 text-xs font-semibold ${
                             used > 0 ? "border-accent bg-accent/10 text-accent" : locked ? "border-slate-200 bg-slate-100 text-slate-400" : "border-slate-300 bg-white text-slate-500"
-                          }`}
+                          } ${selected ? "ring-2 ring-accent ring-offset-2" : ""}`}
+                          aria-pressed={selected}
                           disabled={used === 0}
                           onClick={() => setSelectedStamp(item.id)}
                         >
@@ -279,28 +314,6 @@ export default function MaterialsPage() {
                 </article>
               );
             })}
-            {selectedStamp && (
-              <article className="rounded-2xl border border-slate-200 bg-white/80 p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-base font-bold text-slate-900">{ja ? "過去カード" : "Past Cards"}</h3>
-                  <button className="btn-secondary" onClick={() => setSelectedStamp(null)}>
-                    {ja ? "閉じる" : "Close"}
-                  </button>
-                </div>
-                {(phraseHistory.get(selectedStamp) ?? []).map((card) => (
-                  <div key={card.id} className="input space-y-2">
-                    <p className="text-xs text-slate-500">{card.cefr} / Day {card.dayIndex} / cycle {card.cycle}</p>
-                    <p className="text-xs text-slate-500">{card.original}</p>
-                    <p className="text-base font-bold text-slate-900">{card.personalized}</p>
-                    <p className="text-sm text-slate-700">{card.translation}</p>
-                    <SegmentText segment={card.segment} />
-                    <button className="btn-secondary" onClick={() => void playText(`phrase:${card.id}`, card.segment.text, card.segment.voice)}>
-                      {playingKey === `phrase:${card.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
-                    </button>
-                  </div>
-                ))}
-              </article>
-            )}
           </div>
         )}
       </section>

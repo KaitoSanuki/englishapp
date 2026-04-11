@@ -7,6 +7,22 @@ import { CEFR } from "@/lib/types";
 
 const cefrs: CEFR[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
+const formatDebugValue = (value: unknown) => {
+  if (typeof value === "string") return value;
+  return JSON.stringify(value, null, 2);
+};
+
+function DebugValueBlock({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-semibold text-slate-700">{label}</p>
+      <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-3 text-xs text-slate-700">
+        {formatDebugValue(value)}
+      </pre>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const {
     state,
@@ -183,25 +199,39 @@ export default function ProfilePage() {
           <h2 className="text-base font-bold text-slate-900">{ja ? "管理者モード" : "Admin Mode"}</h2>
           <label className="flex items-center gap-2 text-sm text-slate-900">
             <input type="checkbox" checked={state.prefs.adminDebugEnabled} onChange={(e) => setAdminDebugEnabled(e.target.checked)} />
-            {ja ? "デバッグ表示を有効にする" : "Enable debug traces"}
+            {ja ? "デバッグログを記録する" : "Record debug traces"}
           </label>
           <p className="text-xs text-slate-600">
-            {ja ? "生成時のプロンプト・入力・返答を、その場だけ確認できます。" : "This shows generation prompts, inputs, and responses for the current session only."}
+            {ja
+              ? "ONの間だけ、生成時のプロンプト・入力・返答をこの設定タブに保存します。保存期間は直近7日間です。"
+              : "When enabled, generation prompts, inputs, and responses are saved here in Settings for the last 7 days only."}
           </p>
           {state.debugTraces.length > 0 && (
             <div className="space-y-2">
               <button className="btn-secondary" onClick={clearDebugTraces}>
                 {ja ? "デバッグ表示をクリア" : "Clear Debug Traces"}
               </button>
-              {state.debugTraces.slice(0, 5).map((trace) => (
+              {state.debugTraces.map((trace) => (
                 <details key={trace.id} className="input text-sm text-slate-900">
-                  <summary className="cursor-pointer font-semibold">{trace.feature}</summary>
-                  <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-3 text-xs text-slate-700">
-                    {JSON.stringify(trace.parsedResponse, null, 2)}
-                  </pre>
+                  <summary className="cursor-pointer font-semibold">
+                    {trace.feature} / {new Date(trace.createdAt).toLocaleString(ja ? "ja-JP" : "en-US")}
+                  </summary>
+                  <div className="mt-3 max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                    <DebugValueBlock label="Prompt" value={trace.promptJa} />
+                    <DebugValueBlock label="Request Payload" value={trace.requestPayload} />
+                    <DebugValueBlock label="Raw Response" value={trace.rawResponse} />
+                    <DebugValueBlock label="Parsed Response" value={trace.parsedResponse} />
+                  </div>
                 </details>
               ))}
             </div>
+          )}
+          {state.debugTraces.length === 0 && (
+            <p className="text-xs text-slate-600">
+              {ja
+                ? "まだデバッグログはありません。ONにした状態で生成すると、ここに表示されます。"
+                : "No debug traces yet. Enable recording and generate something to show traces here."}
+            </p>
           )}
         </section>
       )}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { ensurePhraseSetReady, ensurePodcastReady, prewarmPhraseAudio } from "@/lib/lesson-preload";
 import { AnnotatedToken, PhraseCard } from "@/lib/types";
-import { CardShell, DebugBlock, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { CardShell, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, auth, state, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
@@ -160,7 +160,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       >
         <p className="text-sm text-slate-700">{ja ? "スクリプトを見ながら進めます。訳だけ必要なときに開けます。" : "You keep the script visible and reveal the translation only when needed."}</p>
         {error && <p className="text-sm text-rose-700">{error}</p>}
-        <DebugBlock feature="phrases" />
       </CardShell>
     );
   }
@@ -239,7 +238,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         </>
       }
     >
-      <DebugBlock feature="phrases" />
       {stage === "intro" && <p className="text-sm text-slate-700">{ja ? "1カードずつ、音声 → 色付け → オーバーラッピングで進めます。" : "You will go card by card: audio, rhythm marking, then overlap."}</p>}
       {activeCard && stage === "listen" && (
         <div className="space-y-3">

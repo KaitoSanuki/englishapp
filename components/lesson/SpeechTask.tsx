@@ -6,7 +6,7 @@ import { ensurePhraseSetReady, ensurePodcastReady, prewarmSpeechAudio } from "@/
 import { splitSentences, makeSegment } from "@/lib/lesson-utils";
 import { AnnotatedToken, CEFR, SpeechMaterial } from "@/lib/types";
 import { jsonPost } from "@/components/lesson/api";
-import { AnnotatedScriptPreview, CardShell, DebugBlock, ScriptPreview, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { AnnotatedScriptPreview, CardShell, ScriptPreview, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
 export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
   const { activeWeek, auth, state, saveWeekMeta, saveSpeech, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
@@ -181,7 +181,6 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
             </div>
           </div>
           {error && <p className="text-sm text-rose-700">{error}</p>}
-          <DebugBlock feature="speech" />
         </div>
       </CardShell>
     );
@@ -279,7 +278,6 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         </>
       }
     >
-      <DebugBlock feature="speech" />
       {stage === "intro" && <ScriptPreview text={speech.scriptText} />}
       {(stage === "strong" || stage === "weak" || stage === "confirm" || stage === "overlap") && (
         <div className="space-y-3">
