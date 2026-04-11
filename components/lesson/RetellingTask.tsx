@@ -318,7 +318,9 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
       {stage === "keywords" && session && (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">{ja ? "キーワード一覧" : "Keyword List"}</p>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 whitespace-pre-wrap text-slate-900">{buildKeywordPreview(session.keywordLines)}</div>
+          <div className="max-h-[45vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 whitespace-pre-wrap text-slate-900">
+            {buildKeywordPreview(session.keywordLines)}
+          </div>
         </div>
       )}
       {stage === "rounds" && session && (
@@ -329,7 +331,7 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
               {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+          <div className="max-h-[34vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-4">
             <p className="text-sm whitespace-pre-wrap text-slate-900">{buildKeywordPreview(session.keywordLines)}</p>
           </div>
           {currentRound.mode === "1" && recordingUrl && (
