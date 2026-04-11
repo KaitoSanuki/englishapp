@@ -22,12 +22,12 @@ export function CardShell({
   const progress = job ? Math.max(0, Math.min(100, Math.round((job.progressCurrent / Math.max(job.progressTotal, 1)) * 100))) : 0;
 
   return (
-    <section className="w-full max-w-3xl rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-white/60 animate-card-swap">
-      <div className="space-y-1">
+    <section className="flex max-h-[calc(100dvh-6.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-white/60 animate-card-swap">
+      <div className="shrink-0 space-y-1">
         <h2 className="text-2xl font-black text-slate-900">{title}</h2>
         {subtitle && <p className="text-sm text-slate-600">{subtitle}</p>}
       </div>
-      <div className="mt-5 space-y-4">
+      <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {job && (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -47,7 +47,7 @@ export function CardShell({
         )}
         {children}
       </div>
-      {footer && <div className="mt-5 flex flex-wrap gap-2">{footer}</div>}
+      {footer && <div className="mt-5 flex shrink-0 flex-wrap gap-2">{footer}</div>}
     </section>
   );
 }
@@ -77,16 +77,16 @@ export function DebugBlock({ feature }: { feature: string }) {
         {open ? (ja ? "デバッグを閉じる" : "Hide Debug") : ja ? "デバッグを見る" : "Show Debug"}
       </button>
       {open && (
-        <div className="mt-3 space-y-3 text-xs text-slate-700">
+        <div className="mt-3 max-h-[42vh] space-y-3 overflow-y-auto pr-1 text-xs text-slate-700">
           <div>
             <p className="font-semibold text-slate-900">Prompt</p>
-            <div className="mt-1 max-h-48 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
+            <div className="mt-1 max-h-40 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
               <pre className="whitespace-pre-wrap break-words">{trace.promptJa}</pre>
             </div>
           </div>
           <div>
             <p className="font-semibold text-slate-900">Parsed</p>
-            <div className="mt-1 max-h-48 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
+            <div className="mt-1 max-h-40 overflow-y-auto rounded-2xl border border-amber-200/70 bg-white/60 p-3">
               <pre className="whitespace-pre-wrap break-words">{JSON.stringify(trace.parsedResponse, null, 2)}</pre>
             </div>
           </div>

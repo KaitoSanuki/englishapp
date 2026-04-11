@@ -196,7 +196,9 @@ export default function ProfilePage() {
               {state.debugTraces.slice(0, 5).map((trace) => (
                 <details key={trace.id} className="input text-sm text-slate-900">
                   <summary className="cursor-pointer font-semibold">{trace.feature}</summary>
-                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-700">{JSON.stringify(trace.parsedResponse, null, 2)}</pre>
+                  <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-3 text-xs text-slate-700">
+                    {JSON.stringify(trace.parsedResponse, null, 2)}
+                  </pre>
                 </details>
               ))}
             </div>
