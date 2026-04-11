@@ -47,18 +47,18 @@ export const withUpdatedTokens = (segment: LessonSegment, tokens: AnnotatedToken
 export const getTokenStyle = (weight: number) => {
   if (weight > 0) {
     return {
-      color: "#be123c",
+      color: "#fb7185",
       fontSize: `${1 + Math.min(weight, 3) * 0.08}em`
     };
   }
   if (weight < 0) {
     return {
-      color: "#1d4ed8",
+      color: "#60a5fa",
       fontSize: `${1 - Math.min(Math.abs(weight), 3) * 0.07}em`
     };
   }
   return {
-    color: "#0f172a",
+    color: "#f6f1dc",
     fontSize: "1em"
   };
 };

@@ -3,7 +3,15 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+  --app-black: #070706;
+  --app-ink: #f6f1dc;
+  --app-muted: #b9ad8a;
+  --app-panel: rgba(16, 15, 12, 0.9);
+  --app-panel-strong: rgba(24, 22, 17, 0.96);
+  --app-line: rgba(218, 178, 67, 0.24);
+  --app-gold: #d8b348;
+  --app-gold-bright: #f4d35e;
 }
 
 body {
@@ -11,32 +19,110 @@ body {
   min-height: 100vh;
   font-family: "Segoe UI", "Noto Sans JP", sans-serif;
   background:
-    radial-gradient(circle at 10% 10%, rgba(31, 122, 140, 0.18), transparent 40%),
-    radial-gradient(circle at 90% 15%, rgba(245, 158, 11, 0.15), transparent 35%),
-    linear-gradient(180deg, #f8fbff 0%, #eef3f8 100%);
-  color: #0f1c2e;
+    radial-gradient(circle at 12% -10%, rgba(244, 211, 94, 0.18), transparent 34%),
+    radial-gradient(circle at 92% 4%, rgba(216, 179, 72, 0.14), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 12px),
+    linear-gradient(180deg, #11100d 0%, var(--app-black) 46%, #020201 100%);
+  color: var(--app-ink);
 }
 
 
 
 .glass {
-  @apply bg-panel backdrop-blur-sm shadow-glass border border-white/60 dark:border-white/20;
+  @apply backdrop-blur-sm shadow-glass;
+  background: linear-gradient(145deg, rgba(28, 26, 20, 0.92), rgba(10, 10, 8, 0.88));
+  border: 1px solid var(--app-line);
 }
 
 .input {
-  @apply w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 px-3 py-2 text-sm;
+  @apply w-full rounded-xl px-3 py-2 text-sm;
+  background: rgba(8, 8, 7, 0.72);
+  border: 1px solid rgba(218, 178, 67, 0.22);
+  color: var(--app-ink);
 }
 
 .btn {
   @apply rounded-xl px-3 py-2 text-sm font-semibold transition;
+  border: 1px solid transparent;
 }
 
 .btn-primary {
-  @apply btn bg-accent text-white hover:opacity-90;
+  @apply btn hover:opacity-90;
+  background: linear-gradient(135deg, #f4d35e, #b88a2e);
+  color: #090806;
+  box-shadow: 0 10px 24px rgba(216, 179, 72, 0.24);
 }
 
 .btn-secondary {
-  @apply btn bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100;
+  @apply btn;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(218, 178, 67, 0.24);
+  color: var(--app-ink);
+}
+
+.input::placeholder,
+textarea::placeholder,
+input::placeholder {
+  color: rgba(185, 173, 138, 0.65);
+}
+
+.text-slate-900 {
+  color: var(--app-ink) !important;
+}
+
+.text-slate-700,
+.text-slate-600 {
+  color: var(--app-muted) !important;
+}
+
+.text-slate-500,
+.text-slate-400 {
+  color: rgba(185, 173, 138, 0.72) !important;
+}
+
+.bg-white,
+[class~="bg-white/60"],
+[class~="bg-white/70"],
+[class~="bg-white/80"],
+[class~="bg-white/90"],
+.bg-slate-50,
+.bg-slate-100 {
+  background-color: var(--app-panel-strong) !important;
+}
+
+.bg-slate-200 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.border-slate-200,
+.border-slate-300 {
+  border-color: rgba(218, 178, 67, 0.22) !important;
+}
+
+.ring-white\/60 {
+  --tw-ring-color: rgba(218, 178, 67, 0.28) !important;
+}
+
+.bg-accent {
+  background-color: var(--app-gold) !important;
+}
+
+[class~="bg-accent/10"] {
+  background-color: rgba(216, 179, 72, 0.14) !important;
+}
+
+.text-accent {
+  color: var(--app-gold-bright) !important;
+}
+
+.border-accent,
+[class~="border-accent/30"],
+[class~="border-accent/45"] {
+  border-color: rgba(244, 211, 94, 0.42) !important;
+}
+
+.bg-accent.text-white {
+  color: #090806 !important;
 }
 
 @keyframes fadeInUp {

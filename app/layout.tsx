@@ -6,8 +6,8 @@ import { PWARegister } from "@/components/PWARegister";
 import { AuthGate } from "@/components/AuthGate";
 
 export const viewport: Viewport = {
-  themeColor: "#1f7a8c",
-  colorScheme: "light"
+  themeColor: "#070706",
+  colorScheme: "dark"
 };
 
 export const metadata: Metadata = {

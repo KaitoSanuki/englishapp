@@ -10,14 +10,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        base: "#f4f7fb",
-        panel: "#ffffffd9",
-        ink: "#0f1c2e",
-        accent: "#1f7a8c",
-        warm: "#f59e0b"
+        base: "#070706",
+        panel: "#181611f2",
+        ink: "#f6f1dc",
+        accent: "#d8b348",
+        warm: "#f4d35e"
       },
       boxShadow: {
-        glass: "0 10px 30px rgba(15, 28, 46, 0.08)"
+        glass: "0 18px 44px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
       },
       borderRadius: {
         xl2: "1.25rem"

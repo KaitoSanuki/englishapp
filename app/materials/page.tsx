@@ -255,33 +255,6 @@ export default function MaterialsPage() {
                 ? "押されたスタンプをタップすると、そのフレーズの過去カードを見返せます。"
                 : "Tap a stamped phrase to review its past personalized cards."}
             </p>
-            {selectedStamp && (
-              <article className="rounded-2xl border border-accent/30 bg-white/90 p-4 space-y-3 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <h3 className="text-base font-bold text-slate-900">{ja ? "過去カード" : "Past Cards"}</h3>
-                    {selectedStampSource && <p className="text-xs text-slate-500">{selectedStampSource.phrase}</p>}
-                  </div>
-                  <button className="btn-secondary" onClick={() => setSelectedStamp(null)}>
-                    {ja ? "閉じる" : "Close"}
-                  </button>
-                </div>
-                <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
-                  {selectedStampCards.map((card) => (
-                    <div key={card.id} className="input space-y-2">
-                      <p className="text-xs text-slate-500">{card.cefr} / Day {card.dayIndex} / cycle {card.cycle}</p>
-                      <p className="text-xs text-slate-500">{card.original}</p>
-                      <p className="text-base font-bold text-slate-900">{card.personalized}</p>
-                      <p className="text-sm text-slate-700">{card.translation}</p>
-                      <SegmentText segment={card.segment} />
-                      <button className="btn-secondary" onClick={() => void playText(`phrase:${card.id}`, card.segment.text, card.segment.voice)}>
-                        {playingKey === `phrase:${card.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            )}
             {cefrs.map((cefr) => {
               const bankItems = phraseBank.filter((item) => item.cefr === cefr);
               const locked = cefrRank[cefr] > cefrRank[currentCefrLimit];
@@ -317,6 +290,39 @@ export default function MaterialsPage() {
           </div>
         )}
       </section>
+      {selectedStamp && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={() => setSelectedStamp(null)}>
+          <article
+            className="w-full max-w-md overflow-hidden rounded-[28px] border border-accent/45 bg-zinc-950 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-accent">Oxford Phrase</p>
+                <h3 className="text-xl font-black text-slate-900">{ja ? "過去カード" : "Past Cards"}</h3>
+                {selectedStampSource && <p className="text-xs text-slate-500">{selectedStampSource.phrase}</p>}
+              </div>
+              <button className="btn-secondary shrink-0" onClick={() => setSelectedStamp(null)}>
+                {ja ? "閉じる" : "Close"}
+              </button>
+            </div>
+            <div className="mt-4 max-h-[65vh] space-y-3 overflow-y-auto pr-1">
+              {selectedStampCards.map((card) => (
+                <div key={card.id} className="input space-y-2">
+                  <p className="text-xs text-slate-500">{card.cefr} / Day {card.dayIndex} / cycle {card.cycle}</p>
+                  <p className="text-xs text-slate-500">{card.original}</p>
+                  <p className="text-base font-bold text-slate-900">{card.personalized}</p>
+                  <p className="text-sm text-slate-700">{card.translation}</p>
+                  <SegmentText segment={card.segment} />
+                  <button className="btn-secondary" onClick={() => void playText(`phrase:${card.id}`, card.segment.text, card.segment.voice)}>
+                    {playingKey === `phrase:${card.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+      )}
     </div>
   );
 }
