@@ -14,10 +14,11 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   const [theme, setTheme] = useState(activeWeek.theme);
   const [note, setNote] = useState(activeWeek.note);
   const [cefr, setCefr] = useState<CEFR>(activeWeek.cefr || state.prefs.defaultCefr);
-  const [stage, setStage] = useState<"setup" | "intro" | "strong" | "weak" | "confirm" | "overlap" | "review" | "full">(
+  const [stage, setStage] = useState<"setup" | "intro" | "mark" | "overlap" | "review" | "full">(
     activeWeek.speech ? "intro" : "setup"
   );
   const [sentenceIndex, setSentenceIndex] = useState(0);
+  const [markMode, setMarkMode] = useState<"strong" | "weak">("strong");
   const [history, setHistory] = useState<AnnotatedToken[][]>([]);
   const [error, setError] = useState("");
   const { playingKey, playText, playSequence } = useAudioPlayback();
@@ -29,17 +30,19 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     const run = async () => {
       await prewarmSpeechAudio(speech, auth);
       if (cancelled || dayIndex > 4) return;
-      await ensurePhraseSetReady(
-        {
-          week: activeWeek,
-          auth,
-          phraseUsage: state.phraseUsage,
-          savePhraseSet,
-          incrementPhraseUsage,
-          addDebugTrace
-        },
-        dayIndex
-      );
+      if (dayIndex >= 2) {
+        await ensurePhraseSetReady(
+          {
+            week: activeWeek,
+            auth,
+            phraseUsage: state.phraseUsage,
+            savePhraseSet,
+            incrementPhraseUsage,
+            addDebugTrace
+          },
+          dayIndex
+        );
+      }
       if (cancelled) return;
       await ensurePodcastReady(
         {
@@ -96,7 +99,23 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     }
     setSentenceIndex((value) => value + 1);
     setHistory([]);
-    setStage(dayIndex === 1 ? "strong" : "review");
+    setMarkMode("strong");
+    setStage(dayIndex === 1 ? "mark" : "review");
+  };
+
+  const previousSentence = () => {
+    if (!speech) return;
+    if (stage === "full") {
+      setSentenceIndex(speech.segments.length - 1);
+      setHistory([]);
+      setStage(dayIndex === 1 ? "overlap" : "review");
+      return;
+    }
+    if (sentenceIndex <= 0) return;
+    setSentenceIndex((value) => value - 1);
+    setHistory([]);
+    setMarkMode("strong");
+    setStage(dayIndex === 1 ? "mark" : "review");
   };
 
   const generateSpeech = async () => {
@@ -192,22 +211,29 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       <CardShell
         title={ja ? "1分スピーチを復習します" : "Review the 1-Minute Speech"}
         subtitle={ja ? "Day1 で色付けした表示をそのまま使います。" : "This reuses the saved rhythm colors from Day 1."}
+        headerAction={
+          stage === "review" && segment ? (
+            <button className="btn-secondary" onClick={() => void playText(`speech-review:${segment.id}`, segment.text, segment.voice)}>
+              {playingKey === `speech-review:${segment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+            </button>
+          ) : stage === "full" ? (
+            <button className="btn-secondary" onClick={() => void playSequence("speech-full-review", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
+              {playingKey === "speech-full-review" ? (ja ? "再生中..." : "Playing...") : ja ? "全文再生" : "Play Full"}
+            </button>
+          ) : undefined
+        }
         footer={
           <>
             {stage === "intro" && <button className="btn-primary" onClick={() => setStage("review")}>{ja ? "始める" : "Start"}</button>}
             {stage === "review" && (
               <>
-                <button className="btn-secondary" onClick={() => void playText(`speech-review:${segment.id}`, segment.text, segment.voice)}>
-                  {playingKey === `speech-review:${segment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
-                </button>
+                {sentenceIndex > 0 && <button className="btn-secondary" onClick={previousSentence}>{ja ? "前の文へ" : "Previous"}</button>}
                 <button className="btn-primary" onClick={nextSentence}>{sentenceIndex >= speech.segments.length - 1 ? (ja ? "全文へ" : "To Full Script") : ja ? "次の文へ" : "Next Sentence"}</button>
               </>
             )}
             {stage === "full" && (
               <>
-                <button className="btn-secondary" onClick={() => void playSequence("speech-full-review", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
-                  {playingKey === "speech-full-review" ? (ja ? "再生中..." : "Playing...") : ja ? "全文を再生" : "Play Full Script"}
-                </button>
+                <button className="btn-secondary" onClick={previousSentence}>{ja ? "前の文へ" : "Previous"}</button>
                 <button className="btn-primary" onClick={finishTask}>{ja ? "1分スピーチを完了" : "Finish Speech"}</button>
               </>
             )}
@@ -232,46 +258,39 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     <CardShell
       title={ja ? "1分スピーチ" : "1-Minute Speech"}
       subtitle={ja ? "色付け音読をしながら、その場でオーバーラッピングします。" : "Mark the rhythm, then overlap each sentence right away."}
+      headerAction={
+        stage === "mark" || stage === "overlap" ? (
+          <button className="btn-secondary" onClick={() => void playText(`speech-${stage}:${currentSegment.id}`, currentSegment.text, currentSegment.voice)}>
+            {playingKey === `speech-${stage}:${currentSegment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+          </button>
+        ) : stage === "full" ? (
+          <button className="btn-secondary" onClick={() => void playSequence("speech-full", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
+            {playingKey === "speech-full" ? (ja ? "再生中..." : "Playing...") : ja ? "全文再生" : "Play Full"}
+          </button>
+        ) : undefined
+      }
       footer={
         <>
-          {stage === "intro" && <button className="btn-primary" onClick={() => setStage("strong")}>{ja ? "色付け音読を始める" : "Start Rhythm Reading"}</button>}
-          {stage === "strong" && (
+          {stage === "intro" && <button className="btn-primary" onClick={() => setStage("mark")}>{ja ? "色付け音読を始める" : "Start Rhythm Reading"}</button>}
+          {stage === "mark" && (
             <>
-              <button className="btn-secondary" onClick={() => void playText(`speech-strong:${currentSegment.id}`, currentSegment.text, currentSegment.voice)}>
-                {playingKey === `speech-strong:${currentSegment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を聞く" : "Play Audio"}
-              </button>
+              <button className={markMode === "strong" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("strong")}>{ja ? "大" : "Large"}</button>
+              <button className={markMode === "weak" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("weak")}>{ja ? "小" : "Small"}</button>
               <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
-              <button className="btn-primary" onClick={() => { setHistory([]); setStage("weak"); }}>{ja ? "弱く読む語へ" : "To Weak Words"}</button>
-            </>
-          )}
-          {stage === "weak" && (
-            <>
-              <button className="btn-secondary" onClick={() => void playText(`speech-weak:${currentSegment.id}`, currentSegment.text, currentSegment.voice)}>
-                {playingKey === `speech-weak:${currentSegment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を聞く" : "Play Audio"}
-              </button>
-              <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
-              <button className="btn-primary" onClick={() => { setHistory([]); setStage("confirm"); }}>{ja ? "確認へ" : "Review"}</button>
-            </>
-          )}
-          {stage === "confirm" && (
-            <>
-              <button className="btn-secondary" onClick={() => setStage("weak")}>{ja ? "弱い語を直す" : "Edit Weak Words"}</button>
-              <button className="btn-primary" onClick={() => setStage("overlap")}>{ja ? "この文をオーバーラップ" : "Overlap This Sentence"}</button>
+              {sentenceIndex > 0 && <button className="btn-secondary" onClick={previousSentence}>{ja ? "前の文へ" : "Previous"}</button>}
+              <button className="btn-primary" onClick={() => { setHistory([]); setStage("overlap"); }}>{ja ? "この文をオーバーラップ" : "Overlap This Sentence"}</button>
             </>
           )}
           {stage === "overlap" && (
             <>
-              <button className="btn-secondary" onClick={() => void playText(`speech-overlap:${currentSegment.id}`, currentSegment.text, currentSegment.voice)}>
-                {playingKey === `speech-overlap:${currentSegment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を流す" : "Play for Overlap"}
-              </button>
+              <button className="btn-secondary" onClick={() => setStage("mark")}>{ja ? "色付けを直す" : "Edit Marking"}</button>
+              {sentenceIndex > 0 && <button className="btn-secondary" onClick={previousSentence}>{ja ? "前の文へ" : "Previous"}</button>}
               <button className="btn-primary" onClick={nextSentence}>{sentenceIndex >= speech.segments.length - 1 ? (ja ? "全文へ" : "To Full Script") : ja ? "次の文へ" : "Next Sentence"}</button>
             </>
           )}
           {stage === "full" && (
             <>
-              <button className="btn-secondary" onClick={() => void playSequence("speech-full", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
-                {playingKey === "speech-full" ? (ja ? "再生中..." : "Playing...") : ja ? "全文を流す" : "Play Full Script"}
-              </button>
+              <button className="btn-secondary" onClick={previousSentence}>{ja ? "前の文へ" : "Previous"}</button>
               <button className="btn-primary" onClick={finishTask}>{ja ? "1分スピーチを完了" : "Finish Speech"}</button>
             </>
           )}
@@ -279,10 +298,15 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       }
     >
       {stage === "intro" && <ScriptPreview text={speech.scriptText} />}
-      {(stage === "strong" || stage === "weak" || stage === "confirm" || stage === "overlap") && (
+      {(stage === "mark" || stage === "overlap") && (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">{ja ? `文 ${sentenceIndex + 1} / ${speech.segments.length}` : `Sentence ${sentenceIndex + 1} / ${speech.segments.length}`}</p>
-          <TokenEditor segment={currentSegment} editable={stage === "strong" || stage === "weak"} onTokenTap={(tokenId) => applyTokenTap(tokenId, stage === "strong" ? "strong" : "weak")} />
+          {stage === "mark" && (
+            <p className="text-xs text-slate-500">
+              {ja ? `「${markMode === "strong" ? "大" : "小"}」が選択中です。単語をタップして色付けします。` : `${markMode === "strong" ? "Large" : "Small"} is selected. Tap words to mark rhythm.`}
+            </p>
+          )}
+          <TokenEditor segment={currentSegment} editable={stage === "mark"} onTokenTap={(tokenId) => applyTokenTap(tokenId, markMode)} />
         </div>
       )}
       {stage === "full" && <AnnotatedScriptPreview segments={speech.segments} />}

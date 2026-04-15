@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useAppState } from "@/lib/app-state";
 
 const dayTasks = {
-  1: ["speech", "phrases", "podcast"],
+  1: ["speech", "podcast"],
   2: ["speech", "phrases", "podcast"],
   3: ["speech", "phrases", "podcast"],
   4: ["speech", "phrases", "podcast"],
@@ -37,7 +37,10 @@ export default function PracticeProgressPage() {
 
   const totals = useMemo(() => {
     const daysDone = activeWeek.dayStatuses.filter((status) => status.completed).length;
-    const taskDone = activeWeek.dayStatuses.reduce((sum, day) => sum + Object.values(day.tasks).filter(Boolean).length, 0);
+    const taskDone = activeWeek.dayStatuses.reduce((sum, day) => {
+      const tasks = dayTasks[day.dayIndex as keyof typeof dayTasks] ?? [];
+      return sum + tasks.filter((task) => day.tasks[task]).length;
+    }, 0);
     const taskTotal = Object.values(dayTasks).reduce((sum, tasks) => sum + tasks.length, 0);
     return { daysDone, taskDone, taskTotal };
   }, [activeWeek.dayStatuses]);

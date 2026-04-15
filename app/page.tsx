@@ -13,7 +13,7 @@ import { RetellingTask } from "@/components/lesson/RetellingTask";
 import { ExternalChatTask } from "@/components/lesson/ExternalChatTask";
 
 const dayTaskMap: Record<number, DayTaskKey[]> = {
-  1: ["speech", "phrases", "podcast"],
+  1: ["speech", "podcast"],
   2: ["speech", "phrases", "podcast"],
   3: ["speech", "phrases", "podcast"],
   4: ["speech", "phrases", "podcast"],
@@ -41,7 +41,7 @@ const dayTaskLabels = {
 
 const dayDescriptions = {
   ja: {
-    1: "今週の軸になる1分スピーチを作り、Oxford PhraseとPodcastでテーマを広げます。",
+    1: "今週の軸になる1分スピーチを作り、Podcastでテーマを広げます。",
     2: "昨日の1分スピーチを土台に、表現と話題の幅を広げます。",
     3: "色付け済みの1分スピーチを復習しながら、PodcastとPhraseで理解を厚くします。",
     4: "インプットの最終日です。明日のリテリングにつながる材料を整えます。",
@@ -50,7 +50,7 @@ const dayDescriptions = {
     7: "最後の日です。リテリングと外部AI会話で締めて、Podcastで週をつなぎます。"
   },
   en: {
-    1: "Build the weekly 1-minute speech, then expand it through Oxford Phrase and Podcast.",
+    1: "Build the weekly 1-minute speech, then expand it through the podcast.",
     2: "Reuse yesterday's speech as the base and widen your language through phrases and podcast.",
     3: "Review the saved speech rhythm, then deepen the topic with podcast and phrases.",
     4: "Final input day. You prepare material for tomorrow's retelling.",
@@ -92,6 +92,11 @@ export default function HomePage() {
   const advanceCard = () => {
     if (!state.lessonSession) return;
     setLessonSession({ ...state.lessonSession, active: true, cardIndex: state.lessonSession.cardIndex + 1 });
+  };
+
+  const retreatCard = () => {
+    if (!state.lessonSession || state.lessonSession.cardIndex <= 0) return;
+    setLessonSession({ ...state.lessonSession, active: true, cardIndex: state.lessonSession.cardIndex - 1 });
   };
 
   const finishDay = () => {
@@ -195,7 +200,12 @@ export default function HomePage() {
 
       {state.lessonFocusActive && state.lessonSession && targetDay && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
-          <div className="absolute right-4 top-4">
+          <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-2">
+            <div>
+              {state.lessonSession.cardIndex > 0 && (
+                <button className="btn-secondary" onClick={retreatCard}>{ja ? "前のカードへ" : "Previous Card"}</button>
+              )}
+            </div>
             <button className="btn-secondary" onClick={stopLesson}>{ja ? "レッスンを中断" : "Pause Lesson"}</button>
           </div>
           {state.lessonSession.cardIndex === 0 ? (

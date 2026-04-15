@@ -11,9 +11,10 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   const ja = state.language === "ja";
   const speech = activeWeek.speech;
   const phraseSet = activeWeek.phraseSets.find((item) => item.dayIndex === dayIndex);
-  const [stage, setStage] = useState<"intro" | "listen" | "strong" | "weak" | "confirm" | "overlap" | "review">("intro");
+  const [stage, setStage] = useState<"mark" | "overlap" | "review">("mark");
   const [cardIndex, setCardIndex] = useState(0);
   const [reviewIndex, setReviewIndex] = useState(0);
+  const [markMode, setMarkMode] = useState<"strong" | "weak">("strong");
   const [showTranslation, setShowTranslation] = useState(false);
   const [history, setHistory] = useState<AnnotatedToken[][]>([]);
   const [error, setError] = useState("");
@@ -138,7 +139,30 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     setCardIndex((value) => value + 1);
     setShowTranslation(false);
     setHistory([]);
-    setStage("listen");
+    setMarkMode("strong");
+    setStage("mark");
+  };
+
+  const previousCard = () => {
+    if (!phraseSet) return;
+    if (stage === "review") {
+      if (reviewIndex > 0) {
+        setReviewIndex((value) => value - 1);
+        setShowTranslation(false);
+        return;
+      }
+      setCardIndex(phraseSet.cards.length - 1);
+      setShowTranslation(false);
+      setHistory([]);
+      setStage("overlap");
+      return;
+    }
+    if (cardIndex <= 0) return;
+    setCardIndex((value) => value - 1);
+    setShowTranslation(false);
+    setHistory([]);
+    setMarkMode("strong");
+    setStage("mark");
   };
 
   const finishTask = () => {
@@ -168,55 +192,40 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     <CardShell
       title={ja ? "Oxford Phrase" : "Oxford Phrase"}
       subtitle={`${cardIndex + 1} / ${phraseSet.cards.length}`}
+      headerAction={
+        stage === "review" && reviewCard ? (
+          <button className="btn-secondary" onClick={() => void playText(`phrase-review:${reviewCard.id}`, reviewCard.segment.text, reviewCard.segment.voice)}>
+            {playingKey === `phrase-review:${reviewCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+          </button>
+        ) : activeCard ? (
+          <button className="btn-secondary" onClick={() => void playText(`phrase-${stage}:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
+            {playingKey === `phrase-${stage}:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+          </button>
+        ) : undefined
+      }
       footer={
         <>
-          {stage === "intro" && <button className="btn-primary" onClick={() => setStage("listen")}>{ja ? "始める" : "Start"}</button>}
-          {stage === "listen" && activeCard && (
+          {stage === "mark" && activeCard && (
             <>
-              <button className="btn-secondary" onClick={() => void playText(`phrase-listen:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
-                {playingKey === `phrase-listen:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を聞く" : "Play Audio"}
-              </button>
+              <button className={markMode === "strong" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("strong")}>{ja ? "大" : "Large"}</button>
+              <button className={markMode === "weak" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("weak")}>{ja ? "小" : "Small"}</button>
+              <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
+              {cardIndex > 0 && <button className="btn-secondary" onClick={previousCard}>{ja ? "前のカードへ" : "Previous"}</button>}
               <button className="btn-secondary" onClick={() => setShowTranslation((value) => !value)}>{showTranslation ? (ja ? "訳を隠す" : "Hide Translation") : ja ? "訳を見る" : "Show Translation"}</button>
-              <button className="btn-primary" onClick={() => setStage("strong")}>{ja ? "色付けへ" : "Mark Rhythm"}</button>
-            </>
-          )}
-          {stage === "strong" && activeCard && (
-            <>
-              <button className="btn-secondary" onClick={() => void playText(`phrase-strong:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
-                {playingKey === `phrase-strong:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を聞く" : "Play Audio"}
-              </button>
-              <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
-              <button className="btn-primary" onClick={() => { setHistory([]); setStage("weak"); }}>{ja ? "弱い語へ" : "To Weak Words"}</button>
-            </>
-          )}
-          {stage === "weak" && activeCard && (
-            <>
-              <button className="btn-secondary" onClick={() => void playText(`phrase-weak:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
-                {playingKey === `phrase-weak:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を聞く" : "Play Audio"}
-              </button>
-              <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
-              <button className="btn-primary" onClick={() => { setHistory([]); setStage("confirm"); }}>{ja ? "確認へ" : "Review"}</button>
-            </>
-          )}
-          {stage === "confirm" && activeCard && (
-            <>
-              <button className="btn-secondary" onClick={() => setStage("weak")}>{ja ? "弱い語を直す" : "Edit Weak Words"}</button>
               <button className="btn-primary" onClick={() => setStage("overlap")}>{ja ? "このフレーズをオーバーラップ" : "Overlap This Phrase"}</button>
             </>
           )}
           {stage === "overlap" && activeCard && (
             <>
-              <button className="btn-secondary" onClick={() => void playText(`phrase-overlap:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
-                {playingKey === `phrase-overlap:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "音声を流す" : "Play for Overlap"}
-              </button>
+              <button className="btn-secondary" onClick={() => setStage("mark")}>{ja ? "色付けを直す" : "Edit Marking"}</button>
+              {cardIndex > 0 && <button className="btn-secondary" onClick={previousCard}>{ja ? "前のカードへ" : "Previous"}</button>}
+              <button className="btn-secondary" onClick={() => setShowTranslation((value) => !value)}>{showTranslation ? (ja ? "訳を隠す" : "Hide Translation") : ja ? "訳を見る" : "Show Translation"}</button>
               <button className="btn-primary" onClick={nextCard}>{cardIndex >= phraseSet.cards.length - 1 ? (ja ? "通し復習へ" : "To Review") : ja ? "次のフレーズへ" : "Next Phrase"}</button>
             </>
           )}
           {stage === "review" && reviewCard && (
             <>
-              <button className="btn-secondary" onClick={() => void playText(`phrase-review:${reviewCard.id}`, reviewCard.segment.text, reviewCard.segment.voice)}>
-                {playingKey === `phrase-review:${reviewCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
-              </button>
+              {(reviewIndex > 0 || phraseSet.cards.length > 0) && <button className="btn-secondary" onClick={previousCard}>{ja ? "前のカードへ" : "Previous"}</button>}
               <button className="btn-secondary" onClick={() => setShowTranslation((value) => !value)}>
                 {showTranslation ? (ja ? "訳を隠す" : "Hide Translation") : ja ? "訳を見る" : "Show Translation"}
               </button>
@@ -238,19 +247,16 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         </>
       }
     >
-      {stage === "intro" && <p className="text-sm text-slate-700">{ja ? "1カードずつ、音声 → 色付け → オーバーラッピングで進めます。" : "You will go card by card: audio, rhythm marking, then overlap."}</p>}
-      {activeCard && stage === "listen" && (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-wide text-slate-400">{activeCard.original}</p>
-          <p className="text-2xl font-black text-slate-900">{activeCard.personalized}</p>
-          {showTranslation && <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{activeCard.translation}</p>}
-        </div>
-      )}
-      {activeCard && (stage === "strong" || stage === "weak" || stage === "confirm" || stage === "overlap") && (
+      {activeCard && (stage === "mark" || stage === "overlap") && (
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-wide text-slate-400">{activeCard.original}</p>
           {showTranslation && <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{activeCard.translation}</p>}
-          <TokenEditor segment={activeCard.segment} editable={stage === "strong" || stage === "weak"} onTokenTap={(tokenId) => tapToken(tokenId, stage === "strong" ? "strong" : "weak")} />
+          {stage === "mark" && (
+            <p className="text-xs text-slate-500">
+              {ja ? `「${markMode === "strong" ? "大" : "小"}」が選択中です。単語をタップして色付けします。` : `${markMode === "strong" ? "Large" : "Small"} is selected. Tap words to mark rhythm.`}
+            </p>
+          )}
+          <TokenEditor segment={activeCard.segment} editable={stage === "mark"} onTokenTap={(tokenId) => tapToken(tokenId, markMode)} />
         </div>
       )}
       {stage === "review" && reviewCard && (

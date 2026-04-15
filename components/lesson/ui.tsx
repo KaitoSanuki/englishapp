@@ -10,11 +10,13 @@ export function CardShell({
   title,
   subtitle,
   children,
+  headerAction,
   footer
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  headerAction?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
   const { state } = useAppState();
@@ -23,9 +25,12 @@ export function CardShell({
 
   return (
     <section className="flex max-h-[calc(100dvh-6.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-white/60 animate-card-swap">
-      <div className="shrink-0 space-y-1">
-        <h2 className="text-2xl font-black text-slate-900">{title}</h2>
-        {subtitle && <p className="text-sm text-slate-600">{subtitle}</p>}
+      <div className="flex shrink-0 items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-2xl font-black text-slate-900">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-600">{subtitle}</p>}
+        </div>
+        {headerAction && <div className="shrink-0">{headerAction}</div>}
       </div>
       <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {job && (
