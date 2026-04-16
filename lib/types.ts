@@ -187,6 +187,16 @@ export type LessonSession = {
   active: boolean;
   dayIndex: number;
   cardIndex: number;
+  taskProgress?: Record<string, LessonTaskProgress>;
+};
+
+export type LessonTaskProgress = {
+  stage?: string;
+  itemIndex?: number;
+  reviewIndex?: number;
+  markMode?: "strong" | "weak";
+  showTranslation?: boolean;
+  transcriptVisible?: boolean;
 };
 
 export type AppState = {

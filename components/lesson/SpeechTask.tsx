@@ -8,21 +8,34 @@ import { AnnotatedToken, CEFR, SpeechMaterial } from "@/lib/types";
 import { jsonPost } from "@/components/lesson/api";
 import { AnnotatedScriptPreview, CardShell, ScriptPreview, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
+type SpeechStage = "setup" | "intro" | "mark" | "overlap" | "review" | "full";
+
+const speechStages: SpeechStage[] = ["setup", "intro", "mark", "overlap", "review", "full"];
+const isSpeechStage = (value: unknown): value is SpeechStage => typeof value === "string" && speechStages.includes(value as SpeechStage);
+
 export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, auth, state, saveWeekMeta, saveSpeech, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, saveWeekMeta, saveSpeech, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob, setLessonTaskProgress } = useAppState();
   const ja = state.language === "ja";
+  const progressKey = `speech:${dayIndex}`;
+  const savedProgress = state.lessonSession?.taskProgress?.[progressKey];
   const [theme, setTheme] = useState(activeWeek.theme);
   const [note, setNote] = useState(activeWeek.note);
   const [cefr, setCefr] = useState<CEFR>(activeWeek.cefr || state.prefs.defaultCefr);
-  const [stage, setStage] = useState<"setup" | "intro" | "mark" | "overlap" | "review" | "full">(
-    activeWeek.speech ? "intro" : "setup"
-  );
-  const [sentenceIndex, setSentenceIndex] = useState(0);
-  const [markMode, setMarkMode] = useState<"strong" | "weak">("strong");
-  const [history, setHistory] = useState<AnnotatedToken[][]>([]);
+  const [stage, setStage] = useState<SpeechStage>(isSpeechStage(savedProgress?.stage) ? savedProgress.stage : activeWeek.speech ? "intro" : "setup");
+  const [sentenceIndex, setSentenceIndex] = useState(typeof savedProgress?.itemIndex === "number" ? Math.max(0, savedProgress.itemIndex) : 0);
+  const [markMode, setMarkMode] = useState<"strong" | "weak">(savedProgress?.markMode === "weak" ? "weak" : "strong");
   const [error, setError] = useState("");
   const { playingKey, playText, playSequence } = useAudioPlayback();
   const speech = activeWeek.speech;
+
+  useEffect(() => {
+    setLessonTaskProgress(progressKey, { stage, itemIndex: sentenceIndex, markMode });
+  }, [progressKey, stage, sentenceIndex, markMode, setLessonTaskProgress]);
+
+  useEffect(() => {
+    if (!speech || sentenceIndex < speech.segments.length) return;
+    setSentenceIndex(Math.max(0, speech.segments.length - 1));
+  }, [speech, sentenceIndex]);
 
   useEffect(() => {
     if (!speech) return;
@@ -72,23 +85,14 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   const applyTokenTap = (tokenId: string, mode: "strong" | "weak") => {
     if (!speech) return;
     const segment = speech.segments[sentenceIndex];
-    const before = segment.tokens.map((token) => ({ ...token }));
     const next = segment.tokens.map((token) => {
       if (token.id !== tokenId || token.kind !== "word") return token;
       if (mode === "strong") {
-        return { ...token, weight: token.weight >= 0 ? Math.min(3, token.weight + 1) : 1 };
+        return { ...token, weight: Math.min(3, token.weight + 1) };
       }
-      return { ...token, weight: token.weight <= 0 ? Math.max(-3, token.weight - 1) : -1 };
+      return { ...token, weight: Math.max(-3, token.weight - 1) };
     });
-    setHistory((prev) => [...prev, before]);
     updateSegmentTokens(sentenceIndex, next);
-  };
-
-  const undo = () => {
-    const latest = history[history.length - 1];
-    if (!latest || !speech) return;
-    updateSegmentTokens(sentenceIndex, latest);
-    setHistory((prev) => prev.slice(0, -1));
   };
 
   const nextSentence = () => {
@@ -98,7 +102,6 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       return;
     }
     setSentenceIndex((value) => value + 1);
-    setHistory([]);
     setMarkMode("strong");
     setStage(dayIndex === 1 ? "mark" : "review");
   };
@@ -107,13 +110,11 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     if (!speech) return;
     if (stage === "full") {
       setSentenceIndex(speech.segments.length - 1);
-      setHistory([]);
       setStage(dayIndex === 1 ? "overlap" : "review");
       return;
     }
     if (sentenceIndex <= 0) return;
     setSentenceIndex((value) => value - 1);
-    setHistory([]);
     setMarkMode("strong");
     setStage(dayIndex === 1 ? "mark" : "review");
   };
@@ -152,7 +153,6 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       setCurrentJob(undefined);
       setStage("intro");
       setSentenceIndex(0);
-      setHistory([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : ja ? "生成に失敗しました。" : "Generation failed.");
       setCurrentJob({ ...job, status: "error", error: err instanceof Error ? err.message : "error" });
@@ -276,9 +276,8 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
             <>
               <button className={markMode === "strong" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("strong")}>{ja ? "大" : "Large"}</button>
               <button className={markMode === "weak" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("weak")}>{ja ? "小" : "Small"}</button>
-              <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
               {sentenceIndex > 0 && <button className="btn-secondary" onClick={previousSentence}>{ja ? "前の文へ" : "Previous"}</button>}
-              <button className="btn-primary" onClick={() => { setHistory([]); setStage("overlap"); }}>{ja ? "この文をオーバーラップ" : "Overlap This Sentence"}</button>
+              <button className="btn-primary" onClick={() => setStage("overlap")}>{ja ? "この文をオーバーラップ" : "Overlap This Sentence"}</button>
             </>
           )}
           {stage === "overlap" && (

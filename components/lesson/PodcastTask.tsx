@@ -5,18 +5,34 @@ import { useAppState } from "@/lib/app-state";
 import { ensurePodcastReady, prewarmPodcastAudio } from "@/lib/lesson-preload";
 import { CardShell, FullTranscript, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
+type PodcastStage = "intro" | "full-listen" | "turns" | "full-overlap";
+
+const podcastStages: PodcastStage[] = ["intro", "full-listen", "turns", "full-overlap"];
+const isPodcastStage = (value: unknown): value is PodcastStage => typeof value === "string" && podcastStages.includes(value as PodcastStage);
+
 export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, auth, state, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob, setLessonTaskProgress } = useAppState();
   const ja = state.language === "ja";
   const speech = activeWeek.speech;
   const episode = activeWeek.podcasts.find((item) => item.dayIndex === dayIndex);
-  const [stage, setStage] = useState<"intro" | "full-listen" | "turns" | "full-overlap">("intro");
-  const [turnIndex, setTurnIndex] = useState(0);
-  const [transcriptVisible, setTranscriptVisible] = useState(false);
+  const progressKey = `podcast:${dayIndex}`;
+  const savedProgress = state.lessonSession?.taskProgress?.[progressKey];
+  const [stage, setStage] = useState<PodcastStage>(isPodcastStage(savedProgress?.stage) ? savedProgress.stage : "intro");
+  const [turnIndex, setTurnIndex] = useState(typeof savedProgress?.itemIndex === "number" ? Math.max(0, savedProgress.itemIndex) : 0);
+  const [transcriptVisible, setTranscriptVisible] = useState(Boolean(savedProgress?.transcriptVisible));
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [error, setError] = useState("");
   const [autoPreparing, setAutoPreparing] = useState(false);
   const { playingKey, playText, playSequence, stop } = useAudioPlayback();
+
+  useEffect(() => {
+    setLessonTaskProgress(progressKey, { stage, itemIndex: turnIndex, transcriptVisible });
+  }, [progressKey, stage, turnIndex, transcriptVisible, setLessonTaskProgress]);
+
+  useEffect(() => {
+    if (!episode || turnIndex < episode.turns.length) return;
+    setTurnIndex(Math.max(0, episode.turns.length - 1));
+  }, [episode, turnIndex]);
 
   useEffect(() => {
     if (!speech || episode) return;
@@ -115,27 +131,73 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
 
   const activeTurn = episode.turns[turnIndex];
 
+  const previousStep = () => {
+    stop();
+    setHighlightIndex(-1);
+    if (stage === "full-listen") {
+      setTranscriptVisible(false);
+      setStage("intro");
+      return;
+    }
+    if (stage === "turns") {
+      if (turnIndex > 0) {
+        setTurnIndex((value) => value - 1);
+        return;
+      }
+      setTranscriptVisible(false);
+      setStage("full-listen");
+      return;
+    }
+    if (stage === "full-overlap") {
+      setTurnIndex(Math.max(0, episode.turns.length - 1));
+      setTranscriptVisible(false);
+      setStage("turns");
+    }
+  };
+
   return (
     <CardShell
       title={cardTitle}
       subtitle={cardSubtitle}
+      headerAction={
+        stage === "full-listen" ? (
+          <button
+            className="btn-secondary"
+            onClick={() =>
+              void playSequence(
+                `podcast-listen:${episode.id}`,
+                episode.turns.map((turn) => ({ text: turn.text, voice: turn.voice })),
+                setHighlightIndex
+              )
+            }
+          >
+            {playingKey === `podcast-listen:${episode.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "通しで聞く" : "Play Full"}
+          </button>
+        ) : stage === "turns" && activeTurn ? (
+          <button className="btn-secondary" onClick={() => void playText(`podcast-turn:${activeTurn.id}`, activeTurn.text, activeTurn.voice)}>
+            {playingKey === `podcast-turn:${activeTurn.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+          </button>
+        ) : stage === "full-overlap" ? (
+          <button
+            className="btn-secondary"
+            onClick={() =>
+              void playSequence(
+                `podcast-overlap:${episode.id}`,
+                episode.turns.map((turn) => ({ text: turn.text, voice: turn.voice })),
+                setHighlightIndex
+              )
+            }
+          >
+            {playingKey === `podcast-overlap:${episode.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "通しで流す" : "Play Full"}
+          </button>
+        ) : undefined
+      }
       footer={
         <>
           {stage === "intro" && <button className="btn-primary" onClick={() => { setTranscriptVisible(false); setStage("full-listen"); }}>{ja ? "今日のPodcastを聞く" : "Listen to Today's Podcast"}</button>}
           {stage === "full-listen" && (
             <>
-              <button
-                className="btn-secondary"
-                onClick={() =>
-                  void playSequence(
-                    `podcast-listen:${episode.id}`,
-                    episode.turns.map((turn) => ({ text: turn.text, voice: turn.voice })),
-                    setHighlightIndex
-                  )
-                }
-              >
-                {playingKey === `podcast-listen:${episode.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "通しで聞く" : "Play Full Episode"}
-              </button>
+              <button className="btn-secondary" onClick={previousStep}>{ja ? "前のカードへ" : "Previous"}</button>
               <button className="btn-secondary" onClick={() => setTranscriptVisible((value) => !value)}>
                 {transcriptVisible ? (ja ? "スクリプトを隠す" : "Hide Script") : ja ? "スクリプトを表示" : "Show Script"}
               </button>
@@ -144,9 +206,7 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
           )}
           {stage === "turns" && activeTurn && (
             <>
-              <button className="btn-secondary" onClick={() => void playText(`podcast-turn:${activeTurn.id}`, activeTurn.text, activeTurn.voice)}>
-                {playingKey === `podcast-turn:${activeTurn.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "このターンを流す" : "Play This Turn"}
-              </button>
+              <button className="btn-secondary" onClick={previousStep}>{ja ? "前のカードへ" : "Previous"}</button>
               <button
                 className="btn-primary"
                 onClick={() => {
@@ -164,18 +224,7 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
           )}
           {stage === "full-overlap" && (
             <>
-              <button
-                className="btn-secondary"
-                onClick={() =>
-                  void playSequence(
-                    `podcast-overlap:${episode.id}`,
-                    episode.turns.map((turn) => ({ text: turn.text, voice: turn.voice })),
-                    setHighlightIndex
-                  )
-                }
-              >
-                {playingKey === `podcast-overlap:${episode.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "通しで流す" : "Play Full Overlap"}
-              </button>
+              <button className="btn-secondary" onClick={previousStep}>{ja ? "前のカードへ" : "Previous"}</button>
               <button className="btn-secondary" onClick={() => setTranscriptVisible((value) => !value)}>
                 {transcriptVisible ? (ja ? "スクリプトを隠す" : "Hide Script") : ja ? "スクリプトを表示" : "Show Script"}
               </button>

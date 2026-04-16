@@ -273,6 +273,13 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
     <CardShell
       title={ja ? "3-2-1リテリング" : "3-2-1 Retelling"}
       subtitle={ja ? "キーワードはその日だけ固定です。最後の1分だけ文字起こしと添削に回します。" : "Keywords stay fixed for the day. Only the final accepted 1-minute recording is transcribed and corrected."}
+      headerAction={
+        stage === "correction" && session?.correctionText ? (
+          <button className="btn-secondary" onClick={() => void playText("retelling-correction", session.correctionText ?? "", activeWeek.podcastUserVoice)}>
+            {playingKey === "retelling-correction" ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
+          </button>
+        ) : undefined
+      }
       footer={
         <>
           {stage === "intro" && <button className="btn-primary" onClick={() => void prepareKeywords()} disabled={autoPreparing}>{autoPreparing ? (ja ? "裏で準備しています..." : "Preparing in the background...") : ja ? "キーワードを準備する" : "Prepare Keywords"}</button>}
@@ -302,12 +309,7 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
           )}
           {stage === "ready" && <button className="btn-primary" onClick={() => setStage("correction")}>{ja ? "添削文を音読する" : "Read the Corrected Version"}</button>}
           {stage === "correction" && session?.correctionText && (
-            <>
-              <button className="btn-secondary" onClick={() => void playText("retelling-correction", session.correctionText ?? "", activeWeek.podcastUserVoice)}>
-                {playingKey === "retelling-correction" ? (ja ? "再生中..." : "Playing...") : ja ? "音声を流す" : "Play Corrected Audio"}
-              </button>
-              <button className="btn-primary" onClick={finishTask}>{ja ? "3-2-1を完了" : "Finish Retelling"}</button>
-            </>
+            <button className="btn-primary" onClick={finishTask}>{ja ? "3-2-1を完了" : "Finish Retelling"}</button>
           )}
         </>
       }

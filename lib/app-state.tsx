@@ -10,6 +10,7 @@ import {
   GuestTrialState,
   Language,
   LessonSession,
+  LessonTaskProgress,
   PhraseSet,
   PodcastEpisode,
   PodcastVoiceGender,
@@ -118,6 +119,7 @@ type AppStateContextType = {
   setAdminDebugEnabled: (enabled: boolean) => void;
   setLessonFocusActive: (active: boolean) => void;
   setLessonSession: (session?: LessonSession) => void;
+  setLessonTaskProgress: (key: string, progress: LessonTaskProgress) => void;
   setCurrentJob: (job?: GenerationJob) => void;
   saveWeekMeta: (input: Pick<WeekRecord, "theme" | "note" | "cefr">) => void;
   replaceWeek: (week: WeekRecord) => void;
@@ -360,6 +362,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAdminDebugEnabled: (adminDebugEnabled) => setState((prev) => ({ ...prev, prefs: { ...prev.prefs, adminDebugEnabled } })),
     setLessonFocusActive: (lessonFocusActive) => setState((prev) => ({ ...prev, lessonFocusActive })),
     setLessonSession: (lessonSession) => setState((prev) => ({ ...prev, lessonSession })),
+    setLessonTaskProgress: (key, progress) =>
+      setState((prev) => {
+        if (!prev.lessonSession) return prev;
+        const current = prev.lessonSession.taskProgress?.[key];
+        if (JSON.stringify(current ?? {}) === JSON.stringify(progress)) return prev;
+        return {
+          ...prev,
+          lessonSession: {
+            ...prev.lessonSession,
+            taskProgress: {
+              ...(prev.lessonSession.taskProgress ?? {}),
+              [key]: progress
+            }
+          }
+        };
+      }),
     setCurrentJob: (currentJob) => setState((prev) => ({ ...prev, currentJob })),
     saveWeekMeta: ({ theme, note, cefr }) =>
       updateActiveWeek((week) => ({

@@ -78,8 +78,8 @@ export default function HomePage() {
 
   const startLesson = () => {
     if (!targetDay) return;
-    const existingIndex = state.lessonSession?.dayIndex === targetDay ? state.lessonSession.cardIndex : 0;
-    setLessonSession({ active: true, dayIndex: targetDay, cardIndex: existingIndex });
+    const existingSession = state.lessonSession?.dayIndex === targetDay ? state.lessonSession : undefined;
+    setLessonSession(existingSession ? { ...existingSession, active: true } : { active: true, dayIndex: targetDay, cardIndex: 0 });
     setLessonFocusActive(true);
   };
 
@@ -92,11 +92,6 @@ export default function HomePage() {
   const advanceCard = () => {
     if (!state.lessonSession) return;
     setLessonSession({ ...state.lessonSession, active: true, cardIndex: state.lessonSession.cardIndex + 1 });
-  };
-
-  const retreatCard = () => {
-    if (!state.lessonSession || state.lessonSession.cardIndex <= 0) return;
-    setLessonSession({ ...state.lessonSession, active: true, cardIndex: state.lessonSession.cardIndex - 1 });
   };
 
   const finishDay = () => {
@@ -200,12 +195,7 @@ export default function HomePage() {
 
       {state.lessonFocusActive && state.lessonSession && targetDay && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
-          <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-2">
-            <div>
-              {state.lessonSession.cardIndex > 0 && (
-                <button className="btn-secondary" onClick={retreatCard}>{ja ? "前のカードへ" : "Previous Card"}</button>
-              )}
-            </div>
+          <div className="absolute left-4 right-4 top-4 flex items-center justify-end gap-2">
             <button className="btn-secondary" onClick={stopLesson}>{ja ? "レッスンを中断" : "Pause Lesson"}</button>
           </div>
           {state.lessonSession.cardIndex === 0 ? (

@@ -3,26 +3,42 @@
 import { useEffect, useState } from "react";
 import { useAppState } from "@/lib/app-state";
 import { ensurePhraseSetReady, ensurePodcastReady, prewarmPhraseAudio } from "@/lib/lesson-preload";
-import { AnnotatedToken, PhraseCard } from "@/lib/types";
+import { PhraseCard } from "@/lib/types";
 import { CardShell, TokenEditor, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
 
+type PhraseStage = "mark" | "overlap" | "review";
+
+const phraseStages: PhraseStage[] = ["mark", "overlap", "review"];
+const isPhraseStage = (value: unknown): value is PhraseStage => typeof value === "string" && phraseStages.includes(value as PhraseStage);
+
 export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () => void }) {
-  const { activeWeek, auth, state, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob } = useAppState();
+  const { activeWeek, auth, state, savePhraseSet, incrementPhraseUsage, savePodcast, markTaskComplete, addDebugTrace, setCurrentJob, setLessonTaskProgress } = useAppState();
   const ja = state.language === "ja";
   const speech = activeWeek.speech;
   const phraseSet = activeWeek.phraseSets.find((item) => item.dayIndex === dayIndex);
-  const [stage, setStage] = useState<"mark" | "overlap" | "review">("mark");
-  const [cardIndex, setCardIndex] = useState(0);
-  const [reviewIndex, setReviewIndex] = useState(0);
-  const [markMode, setMarkMode] = useState<"strong" | "weak">("strong");
-  const [showTranslation, setShowTranslation] = useState(false);
-  const [history, setHistory] = useState<AnnotatedToken[][]>([]);
+  const progressKey = `phrases:${dayIndex}`;
+  const savedProgress = state.lessonSession?.taskProgress?.[progressKey];
+  const [stage, setStage] = useState<PhraseStage>(isPhraseStage(savedProgress?.stage) ? savedProgress.stage : "mark");
+  const [cardIndex, setCardIndex] = useState(typeof savedProgress?.itemIndex === "number" ? Math.max(0, savedProgress.itemIndex) : 0);
+  const [reviewIndex, setReviewIndex] = useState(typeof savedProgress?.reviewIndex === "number" ? Math.max(0, savedProgress.reviewIndex) : 0);
+  const [markMode, setMarkMode] = useState<"strong" | "weak">(savedProgress?.markMode === "weak" ? "weak" : "strong");
+  const [showTranslation, setShowTranslation] = useState(Boolean(savedProgress?.showTranslation));
   const [error, setError] = useState("");
   const [autoPreparing, setAutoPreparing] = useState(false);
   const { playingKey, playText } = useAudioPlayback();
 
   const activeCard = phraseSet?.cards[cardIndex];
   const reviewCard = phraseSet?.cards[reviewIndex];
+
+  useEffect(() => {
+    setLessonTaskProgress(progressKey, { stage, itemIndex: cardIndex, reviewIndex, markMode, showTranslation });
+  }, [progressKey, stage, cardIndex, reviewIndex, markMode, showTranslation, setLessonTaskProgress]);
+
+  useEffect(() => {
+    if (!phraseSet) return;
+    if (cardIndex >= phraseSet.cards.length) setCardIndex(Math.max(0, phraseSet.cards.length - 1));
+    if (reviewIndex >= phraseSet.cards.length) setReviewIndex(Math.max(0, phraseSet.cards.length - 1));
+  }, [phraseSet, cardIndex, reviewIndex]);
 
   useEffect(() => {
     if (!speech || phraseSet) return;
@@ -83,23 +99,14 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
 
   const tapToken = (tokenId: string, mode: "strong" | "weak") => {
     if (!activeCard) return;
-    const before = activeCard.segment.tokens.map((token) => ({ ...token }));
     const tokens = activeCard.segment.tokens.map((token) => {
       if (token.id !== tokenId || token.kind !== "word") return token;
       if (mode === "strong") {
-        return { ...token, weight: token.weight >= 0 ? Math.min(3, token.weight + 1) : 1 };
+        return { ...token, weight: Math.min(3, token.weight + 1) };
       }
-      return { ...token, weight: token.weight <= 0 ? Math.max(-3, token.weight - 1) : -1 };
+      return { ...token, weight: Math.max(-3, token.weight - 1) };
     });
-    setHistory((prev) => [...prev, before]);
     saveUpdatedCard({ ...activeCard, segment: { ...activeCard.segment, tokens } });
-  };
-
-  const undo = () => {
-    const latest = history[history.length - 1];
-    if (!latest || !activeCard) return;
-    saveUpdatedCard({ ...activeCard, segment: { ...activeCard.segment, tokens: latest } });
-    setHistory((prev) => prev.slice(0, -1));
   };
 
   const generatePhraseSet = async () => {
@@ -138,7 +145,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
     }
     setCardIndex((value) => value + 1);
     setShowTranslation(false);
-    setHistory([]);
     setMarkMode("strong");
     setStage("mark");
   };
@@ -153,14 +159,12 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       }
       setCardIndex(phraseSet.cards.length - 1);
       setShowTranslation(false);
-      setHistory([]);
       setStage("overlap");
       return;
     }
     if (cardIndex <= 0) return;
     setCardIndex((value) => value - 1);
     setShowTranslation(false);
-    setHistory([]);
     setMarkMode("strong");
     setStage("mark");
   };
@@ -191,7 +195,7 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
   return (
     <CardShell
       title={ja ? "Oxford Phrase" : "Oxford Phrase"}
-      subtitle={`${cardIndex + 1} / ${phraseSet.cards.length}`}
+      subtitle={stage === "review" ? (ja ? `通し復習 ${reviewIndex + 1} / ${phraseSet.cards.length}` : `Review ${reviewIndex + 1} / ${phraseSet.cards.length}`) : `${cardIndex + 1} / ${phraseSet.cards.length}`}
       headerAction={
         stage === "review" && reviewCard ? (
           <button className="btn-secondary" onClick={() => void playText(`phrase-review:${reviewCard.id}`, reviewCard.segment.text, reviewCard.segment.voice)}>
@@ -209,7 +213,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
             <>
               <button className={markMode === "strong" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("strong")}>{ja ? "大" : "Large"}</button>
               <button className={markMode === "weak" ? "btn-primary" : "btn-secondary"} onClick={() => setMarkMode("weak")}>{ja ? "小" : "Small"}</button>
-              <button className="btn-secondary" onClick={undo} disabled={!history.length}>{ja ? "1つ戻す" : "Undo"}</button>
               {cardIndex > 0 && <button className="btn-secondary" onClick={previousCard}>{ja ? "前のカードへ" : "Previous"}</button>}
               <button className="btn-secondary" onClick={() => setShowTranslation((value) => !value)}>{showTranslation ? (ja ? "訳を隠す" : "Hide Translation") : ja ? "訳を見る" : "Show Translation"}</button>
               <button className="btn-primary" onClick={() => setStage("overlap")}>{ja ? "このフレーズをオーバーラップ" : "Overlap This Phrase"}</button>
@@ -261,7 +264,6 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       )}
       {stage === "review" && reviewCard && (
         <div className="space-y-3">
-          <p className="text-xs text-slate-500">{ja ? `復習 ${reviewIndex + 1} / ${phraseSet.cards.length}` : `Review ${reviewIndex + 1} / ${phraseSet.cards.length}`}</p>
           <p className="text-xs uppercase tracking-wide text-slate-400">{reviewCard.original}</p>
           <TokenEditor segment={reviewCard.segment} editable={false} />
           {showTranslation && <p className="rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-700">{reviewCard.translation}</p>}
