@@ -3,6 +3,16 @@ import { podcastAxes } from "@/lib/lesson-utils";
 
 const cefrOrLower = (cefr: CEFR) => (cefr === "C2" ? "C1 以下" : `${cefr} 以下`);
 
+const podcastAxisGuides: Record<number, string> = {
+  1: "Understanding: テーマの基本、ユーザーにとっての意味、始めた理由、今の状況をわかりやすく整理する。まだ深掘りしすぎない。",
+  2: "Example: 1つか2つの具体的な場面・行動・エピソードに寄せる。Day1の要約を繰り返さず、実際の場面が見えるようにする。",
+  3: "Comparison: Before/After、A/B、他の選択肢との違いなどを比べる。何が違うのか、なぜその違いが大事なのかを話す。",
+  4: "Perspective: 本人以外の視点、周囲の人の視点、長期的な視点、別の角度から見た意味を扱う。視野を少し広げる。",
+  5: "Trade-off + Emotion: 良い点と難しい点、得るものと失うもの、不安・楽しさ・達成感などの感情を扱う。",
+  6: "Future / Extreme: 今後どうなるか、極端に進んだらどうなるか、理想形やリスクを想像して話す。",
+  7: "Personal + Meta: 1週間の統合。テーマそのものだけでなく、話せるようになったこと、気づき、次に試したいことを扱う。"
+};
+
 export const buildSpeechPromptJa = (theme: string, note: string, cefr: CEFR) => `
 あなたは英会話学習アプリの教材作成AIです。
 
@@ -74,6 +84,7 @@ export const buildPodcastPromptJa = (args: {
   userVoiceGender: PodcastVoiceGender;
 }) => {
   const axis = podcastAxes[args.dayIndex as keyof typeof podcastAxes] ?? "Understanding";
+  const axisGuide = podcastAxisGuides[args.dayIndex] ?? podcastAxisGuides[1];
   const intro = args.dayIndex > 1 && args.previousTitle ? `前日のポッドキャストタイトル: ${args.previousTitle}` : "前日のタイトル参照は不要です。";
   return `
 あなたは英会話学習アプリのポッドキャスト脚本AIです。
@@ -87,6 +98,7 @@ export const buildPodcastPromptJa = (args: {
 - 1分スピーチ: ${args.speechScript}
 - 今日の日付上の位置: Day ${args.dayIndex}
 - 今日の思考軸: ${axis}
+- 今日の具体的な展開方針: ${axisGuide}
 - 目標語数: 400-600 words
 - 会話は2人のみ
   - Partner: ガイド役
@@ -95,11 +107,23 @@ export const buildPodcastPromptJa = (args: {
 - Day 1 は導入
 - Day 2-7 は前日とのつながりが感じられるようにする
 - 特に冒頭で前日の流れを軽く参照してよい
+- ただし毎日同じ内容を言い換えるだけにしない
+- 1分スピーチは素材として使うが、Podcastの主役は「今日の思考軸」である
+- Dayごとに会話の中心トピックを明確に変える
+- タイトルも今日の思考軸が伝わるものにする
+- 前日と同じ導入、同じ質問、同じ結論を避ける
+- User役は1分スピーチをそのまま暗唱しない。自然な会話の中で一部だけ再利用する
 - ただし、会話全体は自然で教材らしくする
 - CEFRはB1前後までを中心に、理解可能で口にしやすい表現を使う
 - User役の英語は模範的で自然にする
 - Partnerばかりが長く話しすぎない
 - オーバーラッピングしやすいように、1ターンは極端に長くしない
+
+構成ルール:
+- 冒頭: 前日とのつながりを1-2ターンだけ軽く出す
+- 中盤: 今日の思考軸に沿って具体的に広げる
+- 終盤: 今日の軸から見えた小さな気づきで終える
+- Day ${args.dayIndex} の会話は、他の日にそのまま流用できない内容にする
 
 参照情報:
 ${intro}
