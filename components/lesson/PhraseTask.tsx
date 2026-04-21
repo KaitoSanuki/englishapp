@@ -198,11 +198,11 @@ export function PhraseTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       subtitle={stage === "review" ? (ja ? `通し復習 ${reviewIndex + 1} / ${phraseSet.cards.length}` : `Review ${reviewIndex + 1} / ${phraseSet.cards.length}`) : `${cardIndex + 1} / ${phraseSet.cards.length}`}
       headerAction={
         stage === "review" && reviewCard ? (
-          <button className="btn-secondary" onClick={() => void playText(`phrase-review:${reviewCard.id}`, reviewCard.segment.text, reviewCard.segment.voice)}>
+          <button className="btn-primary" onClick={() => void playText(`phrase-review:${reviewCard.id}`, reviewCard.segment.text, reviewCard.segment.voice)}>
             {playingKey === `phrase-review:${reviewCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
           </button>
         ) : activeCard ? (
-          <button className="btn-secondary" onClick={() => void playText(`phrase-${stage}:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
+          <button className="btn-primary" onClick={() => void playText(`phrase-${stage}:${activeCard.id}`, activeCard.segment.text, activeCard.segment.voice)}>
             {playingKey === `phrase-${stage}:${activeCard.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
           </button>
         ) : undefined

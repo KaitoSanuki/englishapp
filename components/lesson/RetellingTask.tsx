@@ -275,7 +275,7 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
       subtitle={ja ? "キーワードはその日だけ固定です。最後の1分だけ文字起こしと添削に回します。" : "Keywords stay fixed for the day. Only the final accepted 1-minute recording is transcribed and corrected."}
       headerAction={
         stage === "correction" && session?.correctionText ? (
-          <button className="btn-secondary" onClick={() => void playText("retelling-correction", session.correctionText ?? "", activeWeek.podcastUserVoice)}>
+          <button className="btn-primary" onClick={() => void playText("retelling-correction", session.correctionText ?? "", activeWeek.podcastUserVoice)}>
             {playingKey === "retelling-correction" ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
           </button>
         ) : undefined

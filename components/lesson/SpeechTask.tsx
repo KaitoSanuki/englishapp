@@ -213,11 +213,11 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
         subtitle={ja ? "Day1 で色付けした表示をそのまま使います。" : "This reuses the saved rhythm colors from Day 1."}
         headerAction={
           stage === "review" && segment ? (
-            <button className="btn-secondary" onClick={() => void playText(`speech-review:${segment.id}`, segment.text, segment.voice)}>
+            <button className="btn-primary" onClick={() => void playText(`speech-review:${segment.id}`, segment.text, segment.voice)}>
               {playingKey === `speech-review:${segment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
             </button>
           ) : stage === "full" ? (
-            <button className="btn-secondary" onClick={() => void playSequence("speech-full-review", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
+            <button className="btn-primary" onClick={() => void playSequence("speech-full-review", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
               {playingKey === "speech-full-review" ? (ja ? "再生中..." : "Playing...") : ja ? "全文再生" : "Play Full"}
             </button>
           ) : undefined
@@ -260,11 +260,11 @@ export function SpeechTask({ dayIndex, onDone }: { dayIndex: number; onDone: () 
       subtitle={ja ? "色付け音読をしながら、その場でオーバーラッピングします。" : "Mark the rhythm, then overlap each sentence right away."}
       headerAction={
         stage === "mark" || stage === "overlap" ? (
-          <button className="btn-secondary" onClick={() => void playText(`speech-${stage}:${currentSegment.id}`, currentSegment.text, currentSegment.voice)}>
+          <button className="btn-primary" onClick={() => void playText(`speech-${stage}:${currentSegment.id}`, currentSegment.text, currentSegment.voice)}>
             {playingKey === `speech-${stage}:${currentSegment.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
           </button>
         ) : stage === "full" ? (
-          <button className="btn-secondary" onClick={() => void playSequence("speech-full", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
+          <button className="btn-primary" onClick={() => void playSequence("speech-full", speech.segments.map((segment) => ({ text: segment.text, voice: segment.voice })))}>
             {playingKey === "speech-full" ? (ja ? "再生中..." : "Playing...") : ja ? "全文再生" : "Play Full"}
           </button>
         ) : undefined

@@ -162,7 +162,7 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
       headerAction={
         stage === "full-listen" ? (
           <button
-            className="btn-secondary"
+            className="btn-primary"
             onClick={() =>
               void playSequence(
                 `podcast-listen:${episode.id}`,
@@ -174,12 +174,12 @@ export function PodcastTask({ dayIndex, onDone }: { dayIndex: number; onDone: ()
             {playingKey === `podcast-listen:${episode.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "通しで聞く" : "Play Full"}
           </button>
         ) : stage === "turns" && activeTurn ? (
-          <button className="btn-secondary" onClick={() => void playText(`podcast-turn:${activeTurn.id}`, activeTurn.text, activeTurn.voice)}>
+          <button className="btn-primary" onClick={() => void playText(`podcast-turn:${activeTurn.id}`, activeTurn.text, activeTurn.voice)}>
             {playingKey === `podcast-turn:${activeTurn.id}` ? (ja ? "再生中..." : "Playing...") : ja ? "再生" : "Play"}
           </button>
         ) : stage === "full-overlap" ? (
           <button
-            className="btn-secondary"
+            className="btn-primary"
             onClick={() =>
               void playSequence(
                 `podcast-overlap:${episode.id}`,
