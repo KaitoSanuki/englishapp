@@ -18,8 +18,18 @@ const parseAuthError = (raw: string | undefined, ja: boolean) => {
     if (code === "invalid_credentials") {
       return ja ? "メールアドレスまたはパスワードが違います。" : "Invalid email or password.";
     }
+    if (code === "network_error") {
+      return ja
+        ? "Supabase に接続できませんでした。通信環境、広告ブロッカー、Vercel の環境変数、または Supabase 側の状態を確認してください。"
+        : "Could not connect to Supabase. Check your network, blockers, Vercel environment variables, or Supabase status.";
+    }
     return msg;
   } catch {
+    if (raw === "Failed to fetch") {
+      return ja
+        ? "Supabase に接続できませんでした。通信環境、広告ブロッカー、Vercel の環境変数、または Supabase 側の状態を確認してください。"
+        : "Could not connect to Supabase. Check your network, blockers, Vercel environment variables, or Supabase status.";
+    }
     return raw;
   }
 };

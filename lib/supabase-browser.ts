@@ -17,15 +17,26 @@ const request = async <T>(path: string, init?: RequestInit, token?: string): Pro
   if (!isSupabaseEnabled()) {
     throw new Error("Supabase is not configured.");
   }
-  const res = await fetch(`${url}${path}`, {
-    ...init,
-    headers: {
-      apikey: anonKey,
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {})
-    }
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${url}${path}`, {
+      ...init,
+      headers: {
+        apikey: anonKey,
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {})
+      }
+    });
+  } catch (error) {
+    console.error("Supabase fetch failed", { url, path, error });
+    throw new Error(
+      JSON.stringify({
+        error_code: "network_error",
+        msg: "Could not reach Supabase."
+      })
+    );
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `Supabase request failed: ${res.status}`);
