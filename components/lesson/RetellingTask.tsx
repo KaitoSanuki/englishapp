@@ -5,8 +5,9 @@ import { useAppState } from "@/lib/app-state";
 import { ensureExternalPromptReady, ensurePhraseSetReady, ensurePodcastReady, ensureRetellingKeywordsReady, prewarmCorrectionAudio } from "@/lib/lesson-preload";
 import { buildKeywordPreview, makeSegment } from "@/lib/lesson-utils";
 import { RetellingKeywordLine, RetellingSession } from "@/lib/types";
-import { blobToDataUrl, jsonPost, transcribeBlob } from "@/components/lesson/api";
+import { jsonPost, transcribeBlob } from "@/components/lesson/api";
 import { CardShell, makeClientTrace, makeJob, useAudioPlayback } from "@/components/lesson/ui";
+import { supabaseUploadAudio } from "@/lib/supabase-browser";
 
 const roundDurations = [
   { mode: "3" as const, seconds: 180 },
@@ -235,13 +236,33 @@ export function RetellingTask({ dayIndex, onDone }: { dayIndex: number; onDone: 
         cefr: activeWeek.cefr
       });
       if (correction.debug) addDebugTrace(makeClientTrace(correction.debug));
+      const createdAt = new Date().toISOString();
+      let finalRecording: RetellingSession["finalRecording"] = {
+        mimeType: recordingBlob.type || "audio/webm",
+        createdAt
+      };
+      if (auth.mode === "user" && auth.userId && auth.accessToken) {
+        try {
+          const uploaded = await supabaseUploadAudio({
+            accessToken: auth.accessToken,
+            userId: auth.userId,
+            weekId: session.weekId,
+            type: "review",
+            recordId: session.id,
+            blob: recordingBlob
+          });
+          finalRecording = {
+            ...finalRecording,
+            path: uploaded.path,
+            publicUrl: uploaded.publicUrl
+          };
+        } catch (uploadError) {
+          console.warn("Retelling recording upload failed", uploadError);
+        }
+      }
       const updated: RetellingSession = {
         ...session,
-        finalRecording: {
-          mimeType: recordingBlob.type || "audio/webm",
-          dataUrl: await blobToDataUrl(recordingBlob),
-          createdAt: new Date().toISOString()
-        },
+        finalRecording,
         transcriptText: transcript.text,
         correctionText: correction.data.correctedText,
         correctionSegments: correction.data.sentences.map((sentence) => makeSegment(sentence, activeWeek.podcastUserVoice, "user"))

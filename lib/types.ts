@@ -87,8 +87,9 @@ export type RetellingKeywordLine = {
 
 export type StoredAudio = {
   mimeType: string;
-  dataUrl: string;
   createdAt: string;
+  path?: string;
+  publicUrl?: string;
 };
 
 export type RetellingRound = {

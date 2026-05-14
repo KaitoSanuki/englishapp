@@ -16,6 +16,7 @@ import {
   PodcastVoiceGender,
   RetellingSession,
   SpeechMaterial,
+  StoredAudio,
   UserPlan,
   UserRole,
   WeekRecord
@@ -95,8 +96,28 @@ const defaultState: AppState = {
   debugTraces: []
 };
 
+const compactStoredAudio = (audio?: StoredAudio): StoredAudio | undefined =>
+  audio
+    ? {
+        mimeType: audio.mimeType,
+        createdAt: audio.createdAt,
+        ...(audio.path ? { path: audio.path } : {}),
+        ...(audio.publicUrl ? { publicUrl: audio.publicUrl } : {})
+      }
+    : undefined;
+
+const compactWeeks = (weeks: WeekRecord[]) =>
+  weeks.map((week) => ({
+    ...week,
+    retellings: week.retellings.map((retelling) => ({
+      ...retelling,
+      finalRecording: compactStoredAudio(retelling.finalRecording)
+    }))
+  }));
+
 const toLocalSnapshot = (input: AppState): AppState => ({
   ...input,
+  weeks: compactWeeks(input.weeks),
   lessonFocusActive: false,
   currentJob: undefined,
   debugTraces: pruneDebugTraces(input.debugTraces)
@@ -157,7 +178,7 @@ const hydrateState = (input?: Partial<AppState> | null): AppState => {
       ...defaultState.prefs,
       ...(input?.prefs ?? {})
     },
-    weeks,
+    weeks: compactWeeks(weeks),
     activeWeekId,
     lessonSession: input?.lessonSession,
     currentJob: undefined,
@@ -195,7 +216,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toLocalSnapshot(state)));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toLocalSnapshot(state)));
+    } catch (error) {
+      console.warn("Failed to persist app state locally", error);
+    }
   }, [state]);
 
   const loadCloudSnapshot = async (userId: string, token: string) => {
