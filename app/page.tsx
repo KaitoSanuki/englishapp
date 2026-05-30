@@ -60,6 +60,11 @@ const dayDescriptions = {
   }
 } as const;
 
+const firstIncompleteTaskCardIndex = (tasks: DayTaskKey[], completedTasks: Partial<Record<DayTaskKey, boolean>> | undefined, startTaskIndex = 0) => {
+  const firstIncompleteIndex = tasks.findIndex((task, index) => index >= startTaskIndex && !completedTasks?.[task]);
+  return firstIncompleteIndex === -1 ? tasks.length + 1 : firstIncompleteIndex + 1;
+};
+
 export default function HomePage() {
   const { state, auth, activeWeek, setLessonFocusActive, setLessonSession, createNextWeek, completeDay, markGuestTrialDay } = useAppState();
   const ja = state.language === "ja";
@@ -74,12 +79,23 @@ export default function HomePage() {
   const trialEnded = isLimitedFreePlan && targetDay === null;
   const weekCompleted = auth.mode === "user" && auth.plan !== "free" && targetDay === null;
   const previewTasks = targetDay ? dayTaskMap[targetDay] : [];
+  const targetDayStatus = targetDay ? activeWeek.dayStatuses.find((status) => status.dayIndex === targetDay) : undefined;
   const labels = ja ? dayTaskLabels.ja : dayTaskLabels.en;
 
   const startLesson = () => {
     if (!targetDay) return;
     const existingSession = state.lessonSession?.dayIndex === targetDay ? state.lessonSession : undefined;
-    setLessonSession(existingSession ? { ...existingSession, active: true } : { active: true, dayIndex: targetDay, cardIndex: 0 });
+    const completedTasks = targetDayStatus?.tasks;
+    const hasCompletedTask = previewTasks.some((task) => completedTasks?.[task]);
+    const cardIndex =
+      existingSession && existingSession.cardIndex > 0
+        ? completedTasks?.[previewTasks[existingSession.cardIndex - 1]]
+          ? firstIncompleteTaskCardIndex(previewTasks, completedTasks, existingSession.cardIndex - 1)
+          : existingSession.cardIndex
+        : hasCompletedTask
+          ? firstIncompleteTaskCardIndex(previewTasks, completedTasks)
+          : 0;
+    setLessonSession(existingSession ? { ...existingSession, active: true, cardIndex } : { active: true, dayIndex: targetDay, cardIndex });
     setLessonFocusActive(true);
   };
 
@@ -91,7 +107,11 @@ export default function HomePage() {
 
   const advanceCard = () => {
     if (!state.lessonSession) return;
-    setLessonSession({ ...state.lessonSession, active: true, cardIndex: state.lessonSession.cardIndex + 1 });
+    const nextCardIndex =
+      targetDayStatus && state.lessonSession.cardIndex > 0
+        ? firstIncompleteTaskCardIndex(previewTasks, targetDayStatus.tasks, state.lessonSession.cardIndex)
+        : state.lessonSession.cardIndex + 1;
+    setLessonSession({ ...state.lessonSession, active: true, cardIndex: nextCardIndex });
   };
 
   const finishDay = () => {
@@ -166,8 +186,8 @@ export default function HomePage() {
               {previewTasks.map((task) => (
                 <div key={task} className="input flex items-center justify-between text-slate-900">
                   <span>{labels[task]}</span>
-                  <span className={activeWeek.dayStatuses.find((status) => status.dayIndex === targetDay)?.tasks[task] ? "text-emerald-600 font-semibold" : "text-slate-500"}>
-                    {activeWeek.dayStatuses.find((status) => status.dayIndex === targetDay)?.tasks[task] ? (ja ? "完了" : "Done") : ja ? "これから" : "Next"}
+                  <span className={targetDayStatus?.tasks[task] ? "text-emerald-600 font-semibold" : "text-slate-500"}>
+                    {targetDayStatus?.tasks[task] ? (ja ? "完了" : "Done") : ja ? "これから" : "Next"}
                   </span>
                 </div>
               ))}
@@ -183,8 +203,8 @@ export default function HomePage() {
               {previewTasks.map((task) => (
                 <div key={task} className="input flex items-center justify-between text-slate-900">
                   <span>{labels[task]}</span>
-                  <span className={activeWeek.dayStatuses.find((status) => status.dayIndex === targetDay)?.tasks[task] ? "text-emerald-600 font-semibold" : "text-slate-500"}>
-                    {activeWeek.dayStatuses.find((status) => status.dayIndex === targetDay)?.tasks[task] ? (ja ? "完了" : "Done") : ja ? "未完了" : "Todo"}
+                  <span className={targetDayStatus?.tasks[task] ? "text-emerald-600 font-semibold" : "text-slate-500"}>
+                    {targetDayStatus?.tasks[task] ? (ja ? "完了" : "Done") : ja ? "未完了" : "Todo"}
                   </span>
                 </div>
               ))}
@@ -218,4 +238,3 @@ export default function HomePage() {
     </div>
   );
 }
-
