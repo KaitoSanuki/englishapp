@@ -188,6 +188,37 @@ const hydrateState = (input?: Partial<AppState> | null): AppState => {
   };
 };
 
+const mergeCompletedDayStatuses = (incoming: WeekRecord["dayStatuses"], current: WeekRecord["dayStatuses"]) =>
+  incoming.map((status) => {
+    const currentStatus = current.find((item) => item.dayIndex === status.dayIndex);
+    if (!currentStatus) return status;
+    const tasks = { ...status.tasks };
+    (Object.keys(tasks) as Array<keyof typeof tasks>).forEach((task) => {
+      tasks[task] = Boolean(status.tasks[task] || currentStatus.tasks[task]);
+    });
+    return {
+      ...status,
+      completed: Boolean(status.completed || currentStatus.completed),
+      tasks
+    };
+  });
+
+const preserveCompletedProgress = (incoming: AppState, current: AppState): AppState => ({
+  ...incoming,
+  weeks: incoming.weeks.map((week) => {
+    const currentWeek = current.weeks.find((item) => item.id === week.id);
+    if (!currentWeek) return week;
+    return {
+      ...week,
+      status: week.status === "completed" || currentWeek.status === "completed" ? "completed" : week.status,
+      dayStatuses: mergeCompletedDayStatuses(week.dayStatuses, currentWeek.dayStatuses)
+    };
+  }),
+  guestTrial: {
+    completedDayIndices: Array.from(new Set([...incoming.guestTrial.completedDayIndices, ...current.guestTrial.completedDayIndices]))
+  }
+});
+
 const defaultAuth: AuthState = {
   enabled: isSupabaseEnabled(),
   mode: "guest",
@@ -201,38 +232,54 @@ const getRoleFromEmail = (email?: string | null): UserRole => (email && ADMIN_EM
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(defaultState);
   const [auth, setAuth] = useState<AuthState>(defaultAuth);
+  const [localReady, setLocalReady] = useState(false);
   const cloudReadyRef = useRef(false);
   const syncTimerRef = useRef<number | null>(null);
   const lastSyncedRef = useRef("");
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      setLocalReady(true);
+      return;
+    }
     try {
       setState(hydrateState(JSON.parse(raw) as Partial<AppState>));
     } catch {
       setState(defaultState);
     }
+    setLocalReady(true);
   }, []);
 
   useEffect(() => {
+    if (!localReady) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toLocalSnapshot(state)));
     } catch (error) {
       console.warn("Failed to persist app state locally", error);
     }
-  }, [state]);
+  }, [localReady, state]);
 
   const loadCloudSnapshot = async (userId: string, token: string) => {
     const remote = await supabaseLoadSnapshot(userId, token);
     if (remote) {
       const hydrated = hydrateState(remote);
-      setState((prev) => ({ ...hydrated, debugTraces: pruneDebugTraces(prev.debugTraces) }));
-      lastSyncedRef.current = JSON.stringify(toCloudSnapshot(hydrated));
+      const merged = preserveCompletedProgress(hydrated, stateRef.current);
+      setState((prev) => ({ ...preserveCompletedProgress(merged, prev), debugTraces: pruneDebugTraces(prev.debugTraces) }));
+      const serialized = JSON.stringify(toCloudSnapshot(merged));
+      lastSyncedRef.current = serialized;
       cloudReadyRef.current = true;
+      if (serialized !== JSON.stringify(toCloudSnapshot(hydrated))) {
+        await supabaseSaveSnapshot(userId, token, toCloudSnapshot(merged));
+      }
       return;
     }
-    const snapshot = toCloudSnapshot(state);
+    const snapshot = toCloudSnapshot(stateRef.current);
     await supabaseSaveSnapshot(userId, token, snapshot);
     lastSyncedRef.current = JSON.stringify(snapshot);
     cloudReadyRef.current = true;
@@ -529,4 +576,3 @@ export function useAppState() {
 }
 
 export { guestSampleDays };
-
