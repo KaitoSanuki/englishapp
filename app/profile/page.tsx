@@ -36,6 +36,8 @@ export default function ProfilePage() {
     signUp,
     signOut,
     syncNow,
+    activeWeek,
+    restoreDayComplete,
     clearDebugTraces
   } = useAppState();
   const ja = state.language === "ja";
@@ -45,6 +47,13 @@ export default function ProfilePage() {
   const [showIntro, setShowIntro] = useState(false);
 
   const guestDays = useMemo(() => state.guestTrial.completedDayIndices.length, [state.guestTrial.completedDayIndices.length]);
+  const day6Status = activeWeek.dayStatuses.find((status) => status.dayIndex === 6);
+  const hasDay6Artifacts = Boolean(
+    activeWeek.retellings.some((item) => item.dayIndex === 6) ||
+      activeWeek.externalPrompts.some((item) => item.dayIndex === 6) ||
+      activeWeek.podcasts.some((item) => item.dayIndex === 6)
+  );
+  const canRestoreDay6 = Boolean(day6Status && !day6Status.completed && hasDay6Artifacts);
 
   const submitSignIn = async () => {
     setMessage("");
@@ -68,6 +77,11 @@ export default function ProfilePage() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : ja ? "アカウント作成に失敗しました。" : "Sign up failed.");
     }
+  };
+
+  const restoreDay6 = () => {
+    restoreDayComplete(6, ["retelling", "externalChat", "podcast"]);
+    setMessage(ja ? "6日目を完了に戻しました。" : "Day 6 was restored as complete.");
   };
 
   return (
@@ -137,6 +151,19 @@ export default function ProfilePage() {
 
       <section className="glass rounded-xl2 p-4 space-y-3">
         <h2 className="text-base font-bold text-slate-900">{ja ? "学習設定" : "Learning Preferences"}</h2>
+        {canRestoreDay6 && (
+          <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-semibold text-slate-900">{ja ? "6日目の進捗を復元できます" : "Day 6 Progress Can Be Restored"}</p>
+            <p className="text-sm text-slate-700">
+              {ja
+                ? "教材が残っているため、6日目を完了状態に戻せます。"
+                : "Day 6 materials are still present, so you can restore the day as complete."}
+            </p>
+            <button className="btn-primary" onClick={restoreDay6}>
+              {ja ? "6日目を完了に戻す" : "Restore Day 6"}
+            </button>
+          </div>
+        )}
         <div className="space-y-2">
           <label className="text-sm font-semibold text-slate-900">{ja ? "表示言語" : "Language"}</label>
           <div className="flex gap-2">
@@ -238,4 +265,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

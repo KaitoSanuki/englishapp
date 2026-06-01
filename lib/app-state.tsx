@@ -153,6 +153,7 @@ type AppStateContextType = {
   saveExternalPrompt: (prompt: ExternalChatPrompt) => void;
   markTaskComplete: (dayIndex: number, task: keyof WeekRecord["dayStatuses"][number]["tasks"]) => void;
   completeDay: (dayIndex: number) => void;
+  restoreDayComplete: (dayIndex: number, tasks: Array<keyof WeekRecord["dayStatuses"][number]["tasks"]>) => void;
   resetActiveWeek: () => void;
   incrementPhraseUsage: (phraseIds: string[]) => void;
   addDebugTrace: (trace: DebugTrace) => void;
@@ -506,6 +507,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ? {
                 ...status,
                 completed: true
+              }
+            : status
+        ),
+        status: dayIndex >= 7 ? "completed" : week.status
+      })),
+    restoreDayComplete: (dayIndex, tasks) =>
+      updateActiveWeek((week) => ({
+        ...week,
+        dayStatuses: week.dayStatuses.map((status) =>
+          status.dayIndex === dayIndex
+            ? {
+                ...status,
+                completed: true,
+                tasks: tasks.reduce(
+                  (nextTasks, task) => ({
+                    ...nextTasks,
+                    [task]: true
+                  }),
+                  { ...status.tasks }
+                )
               }
             : status
         ),
